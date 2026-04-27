@@ -12,11 +12,15 @@ pragma solidity ^0.8.30;
 ///      mutually consistent.
 interface ISortesSealedPool {
     /// @notice Lifecycle of a sealed market.
+    /// @dev    Open -> AwaitingDecryption (oracle reported) -> Triggered
+    ///         (CTX submitted, awaiting BITE callback) -> Resolved.
+    ///         Cancellation is reachable from any state pre-Resolved.
     enum MarketStatus {
         None,
         Open,
         AwaitingOracle,
         AwaitingDecryption,
+        Triggered,
         Resolved,
         Cancelled
     }
@@ -78,6 +82,21 @@ interface ISortesSealedPool {
     /// @notice Emitted when a winner redeems their payout.
     event Redeemed(uint256 indexed marketId, address indexed bettor, uint256 amount);
 
+    /// @notice Create a new sealed market. Admin only in v0.
+    /// @param question Question text or IPFS pointer.
+    /// @param outcomeCount Number of mutually exclusive outcomes (>= 2).
+    /// @param submissionDeadline Unix timestamp after which no new bets can be submitted.
+    /// @param resolutionTime Unix timestamp from which resolution can be triggered.
+    /// @param collateral ERC-20 used for stake and payout.
+    /// @return marketId Identifier of the created market.
+    function createMarket(
+        string calldata question,
+        uint256 outcomeCount,
+        uint256 submissionDeadline,
+        uint256 resolutionTime,
+        address collateral
+    ) external returns (uint256 marketId);
+
     /// @notice Submit a BITE-encrypted bet to a sealed market.
     /// @param marketId Identifier of the market.
     /// @param encryptedOutcome BITE TE-encrypted outcome index. Must be encrypted client-side
@@ -90,11 +109,18 @@ interface ISortesSealedPool {
         uint256 stake
     ) external;
 
+    /// @notice Set the oracle outcome for a market. In v0 admin-only; in C5 wired to the
+    ///         UMA OOv3 cross-chain oracle bridge.
+    /// @param marketId Identifier of the market.
+    /// @param outcome Index of the winning outcome.
+    function setOracleOutcome(uint256 marketId, uint256 outcome) external;
+
     /// @notice Once the resolution time is reached and the oracle has reported, trigger batch
     ///         decryption. In the next block, the BITE committee delivers all decrypted bets
-    ///         in a single onDecrypt callback and the contract settles atomically.
+    ///         in a single onDecrypt callback and the contract settles atomically. Caller must
+    ///         attach at least `callbackFee` wei to fund BITE callback execution.
     /// @param marketId Identifier of the market.
-    function triggerResolution(uint256 marketId) external;
+    function triggerResolution(uint256 marketId) external payable;
 
     /// @notice Redeem a winning bet after resolution.
     /// @param marketId Identifier of the market.

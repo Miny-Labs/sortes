@@ -16,14 +16,24 @@ Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** 
 
 | Checkpoint | Status |
 | --- | --- |
-| C1: Repo scaffold, audited dependencies vendored | in progress |
-| C2: SealedPool contract on testnet | pending |
+| C1: Repo scaffold, audited dependencies vendored | done |
+| C2: SealedPool contract written, tests passing, awaiting testnet deployment | in progress |
 | C3: Public AMM via Polymarket CTF + Gnosis FPMM | pending |
 | C4: ConfidentialCollateralWrapper for cUSDC integration | pending |
 | C5: UMA Optimistic Oracle v3 cross-chain resolution | pending |
 | C6: End-to-end demo on testnet | pending |
 
 This README updates with every commit. Deployed addresses are recorded in [`deployments/`](deployments/).
+
+### Test status
+
+```
+forge test
+26 passed, 0 failed
+```
+
+- 4 sanity tests (precompile addresses, type imports)
+- 22 SealedPool tests (lifecycle, oracle path, happy path, refunds, cancellation, fee cap, callback security, gas bounds)
 
 ## Architecture
 

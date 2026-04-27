@@ -4,8 +4,8 @@
 
 If you discover a security vulnerability in Sortes, please **do not open a public issue**. Instead, email the maintainers privately:
 
-- Akash Mondal — akash@minylabs.xyz
-- Hitakshi Arora — hitakshiarora005@gmail.com
+- Akash Mondal — akash@miny-labs.com
+- Hitakshi Arora — hitakshi@miny-labs.com
 
 We will acknowledge receipt within 72 hours and provide a remediation timeline within 7 days. Critical vulnerabilities may be fast-tracked.
 

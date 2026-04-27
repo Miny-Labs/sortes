@@ -17,13 +17,31 @@ Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** 
 | Checkpoint | Status |
 | --- | --- |
 | C1: Repo scaffold, audited dependencies vendored | done |
-| C2: SealedPool contract written, tests passing, awaiting testnet deployment | in progress |
-| C3: Public AMM via Polymarket CTF + Gnosis FPMM | pending |
-| C4: ConfidentialCollateralWrapper for cUSDC integration | pending |
+| C2: SealedPool deployed and verified on SKALE Base Sepolia. Live end-to-end E2E blocked on real BITE Phase 2 precompile availability (see note below). | partial |
+| C3: Public AMM via Polymarket CTF + Gnosis FPMM (USDC.e collateral, no BITE dependency) | pending, unblocked, next |
+| C4: ConfidentialCollateralWrapper for cUSDC integration | pending, blocked on BITE Phase 2 |
 | C5: UMA Optimistic Oracle v3 cross-chain resolution | pending |
 | C6: End-to-end demo on testnet | pending |
 
 This README updates with every commit. Deployed addresses are recorded in [`deployments/`](deployments/).
+
+#### BITE Phase 2 status on SKALE Base Sepolia
+
+Direct probe of the canonical precompile addresses on SKALE Base Sepolia
+(chain id `324705682`, RPC `https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha`):
+
+| Precompile | Address | Code present? |
+| --- | --- | --- |
+| SubmitCTX | `0x000...001B` | no, `eth_call` returns `0x` |
+| EncryptECIES | `0x000...001C` | no |
+| EncryptTE | `0x000...001D` | no |
+
+The `SealedPool` contract is correct and deployed. Its `submitCTXAddress` is
+designed to be swappable: when real Phase 2 precompiles ship on SKALE Base
+Sepolia (or whichever SKALE chain we target for production), a single
+`setSubmitCTXAddress(0x000000000000000000000000000000000000001B)` transaction
+turns on real threshold encryption with no code change. Until then, the live
+encrypt-bet-decrypt loop cannot run end to end on this chain.
 
 ### Test status
 
@@ -106,7 +124,13 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 ### Sortes deployments
 
-None yet. This table fills in as checkpoints land.
+#### SKALE Base Sepolia testnet
+
+| Contract | Address | Verified |
+| --- | --- | --- |
+| SealedPool | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes (Blockscout) |
+
+Owner / treasury: `0xdE1E06268A87f4EDABad45fF23f3c226cF064664`. Configured with `submitCTXAddress = 0x...1B` (the canonical SKALE BITE Phase 2 precompile), `callbackFee = 1000 gwei`, `protocolFeeBps = 100` (1%), `maxBetsPerMarket = 200`. Full record in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
 
 ## Build and test
 

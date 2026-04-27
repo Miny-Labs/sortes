@@ -1,0 +1,20 @@
+{
+  "lib/conditional-tokens-contracts": {
+    "rev": "a927b5a52cf9ace712bf1b5fe1d92bf76399e692"
+  },
+  "lib/conditional-tokens-market-makers": {
+    "rev": "6814c0247c745680bb13298d4f0dd7f5b574d0db"
+  },
+  "lib/confidential-token": {
+    "rev": "5167aafb7d255f79e59aa416b03bcba699813972"
+  },
+  "lib/ctf-exchange": {
+    "rev": "80cbf37d464c652ba21aa93b73804cbded4952ac"
+  },
+  "lib/forge-std": {
+    "rev": "8987040ede9553cea20c95ad40d0455930f9c8e0"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "976783905db8fa58ed85f66e67dd8cd5a989743a"
+  }
+}

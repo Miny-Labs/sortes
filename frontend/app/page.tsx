@@ -45,14 +45,20 @@ export default function HomePage() {
     <>
       <Hero totals={totals} />
 
-      <section className="relative mx-auto max-w-[1400px] px-6 pb-32 pt-8">
-        <div className="mb-6 flex items-baseline justify-between">
+      <div className="mx-auto max-w-[1400px] px-6">
+        <div className="divider" />
+      </div>
+
+      <section className="relative mx-auto max-w-[1400px] px-6 pb-32 pt-20 lg:pt-24">
+        <div className="mb-12 flex flex-wrap items-end justify-between gap-y-4">
           <div>
             <div className="label-eyebrow">Open book</div>
-            <h2 className="mt-1 text-[24px] tracking-tight text-ink-100">Markets</h2>
+            <h2 className="mt-3 font-display text-[40px] font-medium leading-none tracking-tightest text-ink-100 md:text-[52px]">
+              Markets
+            </h2>
           </div>
-          <div className="font-mono text-[11px] tabular-nums text-ink-500">
-            {sorted.length} total · {totals.open} open
+          <div className="font-mono text-[11px] tabular-nums text-ink-400">
+            {sorted.length} total · <span className="text-ink-200">{totals.open}</span> open
           </div>
         </div>
 
@@ -155,51 +161,48 @@ function Capsule({ children, icon }: { children: React.ReactNode; icon: React.Re
   );
 }
 
+// Stats column. Drops the 3-equal-stat hero-metric template and the radial
+// glow accent in favor of a quiet ledger of term/value rows separated by
+// hairlines. The Privacy stack lands directly below as a second ledger,
+// without nesting cards.
 function StatsCard({ totals }: { totals: { stake: bigint; bets: bigint; open: number } }) {
+  const stake = (Number(totals.stake) / 1_000_000).toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  });
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="relative self-start overflow-hidden rounded-[28px] border border-white/[0.06] bg-white/[0.015] p-7"
+      className="self-start space-y-10"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(600px_240px_at_120%_-20%,rgba(52,211,153,0.10),transparent_60%)]" />
-      <div className="relative">
+      <div>
         <div className="label-eyebrow">Live state</div>
-        <div className="mt-6 grid grid-cols-3 gap-6">
-          <Stat
-            label="public stake"
-            unit="USDC.e"
-            value={(Number(totals.stake) / 1_000_000).toLocaleString(undefined, {
-              maximumFractionDigits: 2,
-            })}
-          />
-          <Stat label="bets sealed" value={totals.bets.toString()} />
-          <Stat label="markets open" value={totals.open.toString()} />
-        </div>
+        <dl className="mt-4 divide-y divide-white/[0.05] border-y border-white/[0.05]">
+          <LedgerRow term="public stake" value={`${stake} USDC.e`} />
+          <LedgerRow term="bets sealed" value={totals.bets.toString()} />
+          <LedgerRow term="markets open" value={totals.open.toString()} />
+        </dl>
+      </div>
 
-        <div className="mt-7 border-t border-white/[0.06] pt-5">
-          <div className="label-eyebrow mb-3">Privacy stack</div>
-          <ul className="space-y-2 text-[12px] text-ink-400">
-            <Layer name="Phase 3" body="ECIES re-encrypt of payouts under your viewer key." />
-            <Layer name="Phase 2" body="CTX batch decrypts every direction at resolution." />
-            <Layer name="cnfUSDC.e" body="ERC-20 wrapper. Encrypted balances for amount-privacy." />
-            <Layer name="N≥2 reveal" body="Aggregate odds publish only after a 2-bet batch." />
-          </ul>
-        </div>
+      <div>
+        <div className="label-eyebrow">Privacy stack</div>
+        <ul className="mt-4 space-y-3">
+          <Layer name="PHASE 3" body="ECIES re-encrypt of payouts under your viewer key." />
+          <Layer name="PHASE 2" body="CTX batch decrypts every direction at resolution." />
+          <Layer name="CNFUSDC" body="ERC-20 wrapper. Encrypted balances for amount-privacy." />
+          <Layer name="N≥2" body="Aggregate odds publish only after a 2-bet batch." />
+        </ul>
       </div>
     </motion.div>
   );
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function LedgerRow({ term, value }: { term: string; value: string }) {
   return (
-    <div>
-      <div className="label-eyebrow">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="num text-[22px] font-medium tracking-tight text-ink-100">{value}</span>
-        {unit && <span className="font-mono text-[10px] text-ink-500">{unit}</span>}
-      </div>
+    <div className="flex items-baseline justify-between gap-6 py-3.5">
+      <dt className="text-[13px] text-ink-300">{term}</dt>
+      <dd className="num text-[15px] font-medium text-ink-100">{value}</dd>
     </div>
   );
 }

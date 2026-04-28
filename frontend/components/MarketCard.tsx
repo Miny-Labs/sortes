@@ -49,11 +49,20 @@ export function MarketCard({
 
   return (
     <motion.div
+      role="button"
+      tabIndex={0}
+      aria-label={`Open market: ${market.question}`}
       onMouseMove={onMouseMove}
       onClick={() => onOpen(market.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(market.id);
+        }
+      }}
       whileTap={{ scale: 0.99 }}
       transition={{ type: "spring", stiffness: 200, damping: 24 }}
-      className={`group relative flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.015] p-6 transition-colors hover:border-white/[0.12] ${
+      className={`group relative flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.015] p-6 transition-colors hover:border-white/[0.12] focus-visible:border-signal/60 ${
         size === "lg" ? "p-8 md:p-10" : ""
       }`}
     >
@@ -101,7 +110,7 @@ export function MarketCard({
         <div className="flex items-center gap-4 font-mono text-[11px] tabular-nums text-ink-400">
           <span>
             {(Number(market.totalStake) / 1_000_000).toFixed(2)}{" "}
-            <span className="text-ink-600">USDC.e</span>
+            <span className="text-ink-500">USDC.e</span>
           </span>
           <span>{market.numBets.toString()} bets</span>
           <span className="inline-flex items-center gap-1">

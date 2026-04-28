@@ -5,11 +5,12 @@
 :root {
   color-scheme: dark;
   --grain-opacity: 0.025;
+  --focus-ring: oklch(0.79 0.16 160);
 }
 
 html, body {
-  background: #09090b;
-  color: #ededf0;
+  background: oklch(0.105 0.003 160);
+  color: oklch(0.945 0.004 160);
   font-feature-settings: "ss01" on, "cv11" on, "ss03" on;
 }
 
@@ -20,8 +21,8 @@ body {
 }
 
 ::selection {
-  background: rgba(52, 211, 153, 0.25);
-  color: #ededf0;
+  background: oklch(0.79 0.16 160 / 0.25);
+  color: oklch(0.945 0.004 160);
 }
 
 /* Subtle vignette so the canvas feels expensive without trying too hard. */
@@ -32,8 +33,8 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(1100px 600px at 85% -10%, rgba(52, 211, 153, 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(120, 120, 140, 0.05), transparent 60%);
+    radial-gradient(1100px 600px at 85% -10%, oklch(0.79 0.16 160 / 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, oklch(0.50 0.02 160 / 0.05), transparent 60%);
 }
 
 /* Static grain texture, fixed and pointer-event-none per perf rule. */
@@ -48,16 +49,40 @@ body::after {
   mix-blend-mode: overlay;
 }
 
+@layer base {
+  /* Single, brand-tinted keyboard focus ring. Hidden for mouse users. */
+  *:focus {
+    outline: none;
+  }
+  *:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  /* Respect users who ask for less motion. Collapses framer-motion + CSS
+     animations to near-zero duration. We also pass reducedMotion="user" to
+     MotionConfig in providers.tsx so framer skips orchestration entirely. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
 @layer components {
   .surface {
-    background: rgba(22, 22, 26, 0.72);
+    background: oklch(0.140 0.004 160 / 0.72);
     border: 1px solid rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(12px);
     border-radius: 20px;
   }
 
   .surface-flat {
-    background: #101013;
+    background: oklch(0.140 0.004 160);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 16px;
   }
@@ -71,7 +96,8 @@ body::after {
   }
 
   .pill {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-ink-300 backdrop-blur transition-all;
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs text-ink-300 backdrop-blur transition-all;
+    min-height: 40px;
   }
   .pill:hover {
     @apply border-white/20 bg-white/[0.05] text-ink-100;
@@ -80,6 +106,7 @@ body::after {
   .btn-base {
     @apply inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-200 ease-out select-none;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    min-height: 44px;
   }
   .btn-primary {
     @apply btn-base px-5 py-2.5 text-sm bg-ink-100 text-ink-950 hover:bg-white;
@@ -92,16 +119,16 @@ body::after {
   }
   .btn-signal {
     @apply btn-base px-5 py-2.5 text-sm text-ink-950;
-    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 18px -10px rgba(34,197,94,0.55);
+    background: linear-gradient(180deg, oklch(0.83 0.15 160) 0%, oklch(0.70 0.16 160) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
   .btn-signal:active {
     transform: scale(0.985) translateY(1px);
   }
   .btn-warn {
     @apply btn-base px-5 py-2.5 text-sm text-ink-950;
-    background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 18px -10px rgba(225,29,72,0.55);
+    background: linear-gradient(180deg, oklch(0.74 0.17 16) 0%, oklch(0.58 0.17 16) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
   .btn-warn:active {
     transform: scale(0.985) translateY(1px);
@@ -109,13 +136,14 @@ body::after {
 
   .input {
     @apply w-full bg-transparent rounded-xl border border-white/10 px-4 py-3 text-ink-100 placeholder:text-ink-500 focus:outline-none focus:border-ink-300 transition-colors;
+    min-height: 44px;
   }
   .input-mono {
     @apply input font-mono tabular-nums;
   }
 
   .label-eyebrow {
-    @apply text-[10px] font-mono tracking-[0.18em] uppercase text-ink-500;
+    @apply text-[10px] font-mono tracking-[0.18em] uppercase text-ink-400;
   }
 
   .num {

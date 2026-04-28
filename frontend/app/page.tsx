@@ -88,7 +88,7 @@ function Hero({ totals }: { totals: { stake: bigint; bets: bigint; open: number 
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-5 max-w-[18ch] text-balance text-[44px] font-medium leading-[0.95] tracking-tightest text-ink-100 md:text-[64px]"
+          className="mt-5 max-w-[18ch] text-balance font-display text-[44px] font-medium leading-[0.95] tracking-tightest text-ink-100 md:text-[64px]"
         >
           Public liquidity. <span className="text-ink-400">Sealed</span> direction.
         </motion.h1>
@@ -215,6 +215,22 @@ function Layer({ name, body }: { name: string; body: string }) {
   );
 }
 
+// Deterministic asymmetric bento. Featured spans 4/6 and pairs with a
+// 2-col card on row 1, then alternating 3+3, 2+4, 4+2 rows fill the rest.
+// Designed so no row ever ends up as three equal cards (the templated SaaS
+// tile pattern banned by the design context). Pattern wraps for >9 markets.
+const BENTO_REST: ReadonlyArray<{ span: string; size: "md" | "sm" }> = [
+  { span: "md:col-span-2 lg:col-span-2", size: "sm" }, // row 1 partner of featured
+  { span: "md:col-span-2 lg:col-span-3", size: "md" },
+  { span: "md:col-span-2 lg:col-span-3", size: "md" },
+  { span: "md:col-span-2 lg:col-span-4", size: "md" },
+  { span: "md:col-span-1 lg:col-span-2", size: "sm" },
+  { span: "md:col-span-1 lg:col-span-2", size: "sm" },
+  { span: "md:col-span-2 lg:col-span-4", size: "md" },
+  { span: "md:col-span-2 lg:col-span-3", size: "md" },
+  { span: "md:col-span-2 lg:col-span-3", size: "md" },
+];
+
 function BentoGrid({
   markets,
   onOpen,
@@ -222,8 +238,6 @@ function BentoGrid({
   markets: MarketData[];
   onOpen: (id: bigint) => void;
 }) {
-  // Bento sizing: featured (open) market spans 2 cols on desktop, then a
-  // staggered grid below. Avoids the banned 3-equal-cards layout.
   const [featured, ...rest] = markets;
   return (
     <motion.div
@@ -244,22 +258,19 @@ function BentoGrid({
           <MarketCard market={featured} size="lg" onOpen={onOpen} />
         </motion.div>
       )}
-      {rest.map((m, i) => (
-        <motion.div
-          key={m.id.toString()}
-          variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
-          transition={{ type: "spring", stiffness: 110, damping: 22 }}
-          className={
-            i % 5 === 0
-              ? "md:col-span-2 lg:col-span-3"
-              : i % 5 === 4
-              ? "md:col-span-2 lg:col-span-3"
-              : "md:col-span-1 lg:col-span-2"
-          }
-        >
-          <MarketCard market={m} size={i % 5 === 0 ? "md" : "sm"} onOpen={onOpen} />
-        </motion.div>
-      ))}
+      {rest.map((m, i) => {
+        const slot = BENTO_REST[i % BENTO_REST.length];
+        return (
+          <motion.div
+            key={m.id.toString()}
+            variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
+            transition={{ type: "spring", stiffness: 110, damping: 22 }}
+            className={slot.span}
+          >
+            <MarketCard market={m} size={slot.size} onOpen={onOpen} />
+          </motion.div>
+        );
+      })}
     </motion.div>
   );
 }
@@ -299,16 +310,16 @@ function EmptyMarkets() {
 function Footer() {
   return (
     <footer className="border-t border-white/[0.04]">
-      <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-6 py-8 text-[11px] text-ink-500 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-2 px-6 py-6 text-[11px] text-ink-400 sm:flex-row sm:items-center sm:justify-between">
+        <div className="py-2">
           Sortes alpha · SKALE Base Sepolia · BITE Phase 2 + Phase 3 · evm istanbul · solc 0.8.27
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <a
             href="https://github.com/Miny-Labs/sortes"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 hover:text-ink-200"
+            className="inline-flex h-11 items-center gap-1 rounded-full px-3 hover:text-ink-100"
           >
             github
             <ArrowUpRight className="h-3 w-3" />
@@ -317,7 +328,7 @@ function Footer() {
             href={`${EXPLORER_URL}/address/${ADDRESSES.SealedPool}`}
             target="_blank"
             rel="noreferrer"
-            className="num inline-flex items-center gap-1 hover:text-ink-200"
+            className="num inline-flex h-11 items-center gap-1 rounded-full px-3 hover:text-ink-100"
           >
             contract
             <ArrowUpRight className="h-3 w-3" />

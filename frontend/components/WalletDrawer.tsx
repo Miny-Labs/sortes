@@ -63,7 +63,7 @@ export function WalletDrawer({ open, onClose }: Props) {
               </div>
               <button
                 onClick={onClose}
-                className="rounded-full p-2 text-ink-400 transition-colors hover:bg-white/[0.04] hover:text-ink-100"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-400 transition-colors hover:bg-white/[0.04] hover:text-ink-100"
                 aria-label="Close"
               >
                 <X weight="bold" className="h-4 w-4" />

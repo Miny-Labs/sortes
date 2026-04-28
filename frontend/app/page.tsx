@@ -17,7 +17,7 @@ export default function HomePage() {
   const [openId, setOpenId] = useState<bigint | null>(null);
 
   const sorted = useMemo(() => {
-    const arr = [...markets];
+    const arr = markets.filter((m) => m.status !== MarketStatus.Cancelled);
     arr.sort((a, b) => {
       if (a.status !== b.status) {
         if (a.status === MarketStatus.Open) return -1;
@@ -33,6 +33,7 @@ export default function HomePage() {
     let bets = 0n;
     let open = 0;
     for (const m of markets) {
+      if (m.status === MarketStatus.Cancelled) continue;
       stake += m.totalStake;
       bets += m.numBets;
       if (m.status === MarketStatus.Open) open++;

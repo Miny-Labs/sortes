@@ -13,6 +13,13 @@ import { IBiteSupplicant } from "@skalenetwork/bite-solidity/interfaces/IBiteSup
 
 import { ISortesSealedPool } from "./interfaces/ISortesSealedPool.sol";
 
+/// @notice Minimal interface to the SKALE Confidential Token (cUSDC) used
+///         by the confidential-bet path. Only the calls we need.
+interface IConfidentialToken {
+    function encryptedTransferFrom(address from, address to, bytes calldata value) external;
+    function encryptedTransfer(address to, bytes calldata value) external;
+}
+
 /// @title  SealedPool (v2) — tight Phase 2 + Phase 3 integration
 /// @author Sortes contributors
 /// @notice Sealed-bid prediction market pool implementing Pattern 3 from the
@@ -62,18 +69,47 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         bool redeemed;
     }
 
+    /// @notice A confidential bet. Stake AND outcome both encrypted, settled
+    ///         in the SKALE Confidential Token (cUSDC) wrapping the market's
+    ///         underlying USDC.e collateral. Stake-amount privacy is achieved
+    ///         because the cUSDC.encryptedTransferFrom called inside
+    ///         submitConfidentialBet uses the SAME teEncryptedStake ciphertext
+    ///         that this contract stores. Direction is a separate ciphertext.
+    /// @dev    Same pot as public bets. Resolution decrypts both the public
+    ///         and confidential arrays in one batch CTX; the unified pot is
+    ///         (totalPublicStake + totalConfidentialStake) and winners across
+    ///         both arrays share the proportional prize.
+    struct ConfidentialBet {
+        address bettor;
+        PublicKey viewerKey;
+        bytes teEncryptedDirection;     // TE(abi.encode(outcome))
+        bytes teEncryptedStake;         // TE(abi.encode(stake)) — also used as cUSDC encryptedTransferFrom payload
+        bytes eciesEncryptedDirection;  // ECIES under viewerKey
+        bytes eciesEncryptedStake;      // ECIES under viewerKey
+        bytes eciesEncryptedPayout;     // re-encrypted payout, set in onDecrypt
+        uint256 chosenOutcome;          // populated in onDecrypt
+        uint256 stake;                  // populated in onDecrypt
+        uint256 payoutAmount;           // populated in onDecrypt
+        bool decrypted;
+        bool redeemed;
+    }
+
     struct Market {
         string question;
         uint256 outcomeCount;
         uint256 submissionDeadline;
         uint256 resolutionTime;
-        IERC20 collateral;
+        IERC20 collateral;             // public-side underlying (USDC.e)
+        IERC20 confidentialCollateral; // confidential-side wrapper (cUSDC). Optional.
         MarketStatus status;
         uint256 oracleOutcome;
         bool oracleReported;
-        uint256 totalStake;
-        uint256 winningStake;
+        uint256 totalStake;            // PUBLIC totalStake (USDC.e)
+        uint256 winningStake;          // PUBLIC winningStake
+        uint256 confidentialTotalStake;   // populated in onDecrypt
+        uint256 confidentialWinningStake; // populated in onDecrypt
         Bet[] bets;
+        ConfidentialBet[] confidentialBets;
     }
 
     // ─── Constants ─────────────────────────────────────────────────────
@@ -175,6 +211,9 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
     error InvalidViewerKey();
     error NotEnoughForAggregate(uint256 unaggregated, uint256 minimum);
     error NotAuthorizedOracleAdapter();
+    error ConfidentialNotEnabled();
+    error UnknownCallbackType();
+    error ConfidentialBetNotResolved();
 
     // ─── Events not on the interface ───────────────────────────────
 
@@ -194,6 +233,24 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         uint256 newAggregateStake,
         uint256 totalAggregatedBets
     );
+
+    /// @notice Emitted when a confidential bet is submitted.
+    event ConfidentialBetSubmitted(
+        uint256 indexed marketId,
+        address indexed bettor,
+        uint256 indexed betIndex
+    );
+
+    /// @notice Emitted when a confidential bet is redeemed (cUSDC payout).
+    event ConfidentialRedeemed(
+        uint256 indexed marketId,
+        address indexed bettor,
+        uint256 indexed betIndex,
+        uint256 payout
+    );
+
+    /// @notice Emitted when the owner enables confidential collateral on a market.
+    event ConfidentialCollateralSet(uint256 indexed marketId, address indexed collateral);
 
     // ─── Constructor ──────────────────────────────────────────────────
 
@@ -462,22 +519,34 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
             );
         }
 
-        uint256 numBets = m.bets.length;
-        // SubmitCTX precompile requires equal-length encArgs and ptxArgs
-        // (one plaintext metadata blob per encrypted argument). Mirror
-        // confidential-poker showdown pattern: pack (marketId, betIndex)
-        // into each plaintext entry.
-        bytes[] memory encArgs = new bytes[](numBets);
-        bytes[] memory ptxArgs = new bytes[](numBets);
+        uint256 numPub = m.bets.length;
+        uint256 numConf = m.confidentialBets.length;
+        // Public bets contribute 1 ciphertext (direction) per bet.
+        // Confidential bets contribute 2 ciphertexts (direction + stake).
+        // Total = numPub + 2*numConf. SubmitCTX requires encArgs.length ==
+        // ptxArgs.length so we pad ptxArgs accordingly.
+        uint256 totalArgs = numPub + 2 * numConf;
+        bytes[] memory encArgs = new bytes[](totalArgs);
+        bytes[] memory ptxArgs = new bytes[](totalArgs);
 
-        for (uint256 i = 0; i < numBets; ++i) {
+        // Public bets first.
+        for (uint256 i = 0; i < numPub; ++i) {
             encArgs[i] = m.bets[i].teEncryptedOutcome;
-            ptxArgs[i] = abi.encode(marketId, i);
+            // Tag 0 = public bet direction.
+            ptxArgs[i] = abi.encode(uint8(0), marketId, i);
+        }
+        // Then confidential bets: direction + stake.
+        for (uint256 i = 0; i < numConf; ++i) {
+            uint256 base = numPub + 2 * i;
+            encArgs[base] = m.confidentialBets[i].teEncryptedDirection;
+            ptxArgs[base] = abi.encode(uint8(1), marketId, i); // tag 1 = conf direction
+            encArgs[base + 1] = m.confidentialBets[i].teEncryptedStake;
+            ptxArgs[base + 1] = abi.encode(uint8(2), marketId, i); // tag 2 = conf stake
         }
 
-        // PHASE 2: SubmitCTX precompile
+        // PHASE 2: SubmitCTX precompile, batched across both arrays.
         address payable callback = BITE.submitCTX(
-            submitCtxAddress, _resolutionGasLimit(numBets), encArgs, ptxArgs
+            submitCtxAddress, _resolutionGasLimit(totalArgs), encArgs, ptxArgs
         );
 
         _pendingMarket[callback] = marketId;
@@ -585,6 +654,63 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         bet.redeemed = true;
         m.collateral.safeTransfer(bet.bettor, payout);
         emit Redeemed(marketId, msg.sender, payout);
+    }
+
+    /// @notice Redeem a confidential bet payout. Pays out in cUSDC via the
+    ///         confidential token's encryptedTransfer. Plaintext payoutAmount
+    ///         was set in onDecrypt; we re-encrypt it here for the cUSDC
+    ///         transfer payload.
+    /// @dev    Cancellation refund for confidential bets requires the stake
+    ///         to be known. v1 only supports redemption from a Resolved
+    ///         market (where stakes have been decrypted). Cancelling a
+    ///         market that contains confidential bets is gated by setting
+    ///         confidentialCollateral to address(0) before cancellation;
+    ///         tracked as v1.5 work.
+    function redeemConfidential(uint256 marketId, uint256 betIndex) external nonReentrant {
+        Market storage m = _market(marketId);
+        if (m.status != MarketStatus.Resolved) revert ConfidentialBetNotResolved();
+        ConfidentialBet storage cbet = m.confidentialBets[betIndex];
+        if (cbet.bettor != msg.sender) revert NotBettor();
+        if (cbet.redeemed) revert AlreadyRedeemed();
+
+        uint256 payout;
+        uint256 totalWinning = m.winningStake + m.confidentialWinningStake;
+        if (totalWinning == 0) {
+            // Nobody won, refund stake.
+            payout = cbet.stake;
+        } else if (cbet.chosenOutcome == m.oracleOutcome) {
+            payout = cbet.payoutAmount;
+        } else {
+            revert NotAWinner();
+        }
+
+        cbet.redeemed = true;
+
+        // Re-encrypt the payout amount for cUSDC.encryptedTransfer.
+        // (The pool itself is the sender; cUSDC's CTX validates pool's
+        // encrypted balance covers the transfer.)
+        bytes memory encryptedPayout = BITE.encryptTE(
+            encryptTeAddress, abi.encode(payout)
+        );
+        IConfidentialToken(address(m.confidentialCollateral))
+            .encryptedTransfer(cbet.bettor, encryptedPayout);
+
+        emit ConfidentialRedeemed(marketId, msg.sender, betIndex, payout);
+    }
+
+    /// @notice View an confidential bet's encrypted payout claim. Returns
+    ///         empty bytes if the bet didn't win.
+    function confidentialEncryptedPayoutOf(uint256 marketId, uint256 betIndex)
+        external
+        view
+        returns (bytes memory)
+    {
+        return _market(marketId).confidentialBets[betIndex].eciesEncryptedPayout;
+    }
+
+    /// @notice Number of confidential bets in a market.
+    function confidentialBetCountOf(uint256 marketId) external view returns (uint256) {
+        return _market(marketId).confidentialBets.length;
     }
 
     /// @notice Sweep protocol fees for a resolved market to the treasury.
@@ -751,71 +877,113 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         bytes[] calldata decryptedArguments,
         bytes[] calldata plaintextArguments
     ) private {
-        // Both arrays must match in length and in length to the bet array.
         if (plaintextArguments.length != decryptedArguments.length) {
             revert CallbackArgsLengthMismatch();
         }
         Market storage m = _markets[marketId];
-        if (decryptedArguments.length != m.bets.length) revert CallbackArgsLengthMismatch();
 
-        // Verify the first plaintext entry's marketId matches the registered
-        // pending marketId. Defensive check; pendingMarket[msg.sender] already
-        // routed us here.
-        if (plaintextArguments.length > 0) {
-            (uint256 decodedMarketId, ) = abi.decode(plaintextArguments[0], (uint256, uint256));
-            if (decodedMarketId != marketId) revert UnknownCallback();
+        uint256 numPub = m.bets.length;
+        uint256 numConf = m.confidentialBets.length;
+        if (decryptedArguments.length != numPub + 2 * numConf) {
+            revert CallbackArgsLengthMismatch();
         }
 
         uint256 winningOutcome = m.oracleOutcome;
-        uint256 numBets = decryptedArguments.length;
 
-        // First pass: decrypt outcomes and total winning stake.
-        uint256 winningStake = 0;
-        for (uint256 i = 0; i < numBets; ++i) {
+        uint256 publicWinningStake = 0;
+        uint256 confidentialTotalStake = 0;
+        uint256 confidentialWinningStake = 0;
+
+        // Walk the unified arg array. Tag in plaintextArguments[i] dispatches:
+        //   0 = public direction
+        //   1 = confidential direction
+        //   2 = confidential stake
+        for (uint256 i = 0; i < decryptedArguments.length; ++i) {
             bytes calldata raw = decryptedArguments[i];
             if (raw.length != 32) revert DecryptedValueWrongLength();
-            uint256 chosen = abi.decode(raw, (uint256));
+            uint256 value = abi.decode(raw, (uint256));
 
-            Bet storage bet = m.bets[i];
-            bet.chosenOutcome = chosen;
-            bet.decrypted = true;
-            if (chosen == winningOutcome) {
-                winningStake += bet.stake;
+            (uint8 tag, uint256 mid, uint256 betIdx) = abi.decode(
+                plaintextArguments[i], (uint8, uint256, uint256)
+            );
+            if (mid != marketId) revert UnknownCallback();
+
+            if (tag == 0) {
+                Bet storage bet = m.bets[betIdx];
+                bet.chosenOutcome = value;
+                bet.decrypted = true;
+                if (value == winningOutcome) {
+                    publicWinningStake += bet.stake;
+                }
+            } else if (tag == 1) {
+                m.confidentialBets[betIdx].chosenOutcome = value;
+            } else if (tag == 2) {
+                ConfidentialBet storage cbet = m.confidentialBets[betIdx];
+                cbet.stake = value;
+                cbet.decrypted = true;
+                confidentialTotalStake += value;
+                if (cbet.chosenOutcome == winningOutcome) {
+                    confidentialWinningStake += value;
+                }
+            } else {
+                revert UnknownCallbackType();
             }
         }
-        m.winningStake = winningStake;
 
-        // Second pass: compute payouts and re-encrypt winning amounts under
-        // viewer keys via PHASE 3 EncryptECIES.
-        uint256 grossPot = m.totalStake;
+        m.winningStake = publicWinningStake;
+        m.confidentialTotalStake = confidentialTotalStake;
+        m.confidentialWinningStake = confidentialWinningStake;
+
+        // UNIFIED POT MATH. Both arrays share the same pot, so a confidential
+        // whale with stake X (in cUSDC) gets matched against losing bets from
+        // BOTH public and confidential sides. No fragmented liquidity.
+        uint256 grossPot = m.totalStake + confidentialTotalStake;
+        uint256 totalWinning = publicWinningStake + confidentialWinningStake;
         uint256 fee = (grossPot * protocolFeeBps) / BPS_DENOMINATOR;
         uint256 netPot = grossPot - fee;
 
-        for (uint256 i = 0; i < numBets; ++i) {
-            Bet storage bet = m.bets[i];
-            uint256 payout;
-            if (winningStake == 0) {
-                payout = bet.stake; // refund
-            } else if (bet.chosenOutcome == winningOutcome) {
-                payout = (bet.stake * netPot) / winningStake;
-            } else {
-                continue; // loser: no payout, leave eciesEncryptedPayout empty
+        // Compute payouts and re-encrypt winning amounts under viewer keys.
+        if (totalWinning == 0) {
+            // Nobody picked the winning outcome: refund everyone their stake.
+            for (uint256 i = 0; i < numPub; ++i) {
+                Bet storage bet = m.bets[i];
+                bet.payoutAmount = bet.stake;
+                bet.eciesEncryptedPayout = BITE.encryptECIES(
+                    encryptEciesAddress, abi.encode(bet.stake), bet.viewerKey
+                );
             }
-
-            bet.payoutAmount = payout;
-
-            // PHASE 3: re-encrypt the payout amount under the bettor's viewer
-            // key. Off-chain observers see only the ciphertext; the bettor
-            // decrypts client-side to learn their payout.
-            bet.eciesEncryptedPayout = BITE.encryptECIES(
-                encryptEciesAddress,
-                abi.encode(payout),
-                bet.viewerKey
-            );
+            for (uint256 i = 0; i < numConf; ++i) {
+                ConfidentialBet storage cbet = m.confidentialBets[i];
+                cbet.payoutAmount = cbet.stake;
+                cbet.eciesEncryptedPayout = BITE.encryptECIES(
+                    encryptEciesAddress, abi.encode(cbet.stake), cbet.viewerKey
+                );
+            }
+        } else {
+            for (uint256 i = 0; i < numPub; ++i) {
+                Bet storage bet = m.bets[i];
+                if (bet.chosenOutcome == winningOutcome) {
+                    uint256 payout = (bet.stake * netPot) / totalWinning;
+                    bet.payoutAmount = payout;
+                    bet.eciesEncryptedPayout = BITE.encryptECIES(
+                        encryptEciesAddress, abi.encode(payout), bet.viewerKey
+                    );
+                }
+            }
+            for (uint256 i = 0; i < numConf; ++i) {
+                ConfidentialBet storage cbet = m.confidentialBets[i];
+                if (cbet.chosenOutcome == winningOutcome) {
+                    uint256 payout = (cbet.stake * netPot) / totalWinning;
+                    cbet.payoutAmount = payout;
+                    cbet.eciesEncryptedPayout = BITE.encryptECIES(
+                        encryptEciesAddress, abi.encode(payout), cbet.viewerKey
+                    );
+                }
+            }
         }
 
         m.status = MarketStatus.Resolved;
-        emit MarketResolved(marketId, winningOutcome, m.totalStake, winningStake);
+        emit MarketResolved(marketId, winningOutcome, grossPot, totalWinning);
     }
 
     /// @notice Per-call gas budget for the resolution callback.

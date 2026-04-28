@@ -53,6 +53,10 @@ forge test
 37 passed, 0 failed
 ```
 
+### Frontend integration
+
+ABIs are exported under [`abi/`](abi/). Step-by-step integration guide for both public and confidential bet flows: [`INTEGRATION.md`](INTEGRATION.md). Architecture rationale and design decisions: [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 - 4 sanity tests (precompile addresses, type imports)
 - 33 SealedPool tests covering: constructor reserve invariants, lifecycle, oracle path, dual-encryption submission, viewer key storage, the full happy path with **Phase 3 ECIES payout re-encryption** verified, no-winners refund, cancellation, fee cap, callback security, max-bets cap, withdraw-excess-reserve invariant, **aggregate disclosure** (N≥2 threshold, multiple incremental reveals, market-state guards), **pluggable oracle adapter** (delegated reporting, unauthorized rejection, owner override).
 
@@ -129,10 +133,11 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 #### SKALE Base Sepolia testnet — production deployment
 
-| Contract | Address | Verified |
-| --- | --- | --- |
-| **SealedPool (production)** | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes |
-| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes |
+| Contract | Address | Verified | Notes |
+| --- | --- | --- | --- |
+| **SealedPool v3** | [`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589) | yes | Unified-TVL design with public + confidential bet paths sharing one pot. |
+| SealedPool v2 (E2E proof) | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes | Live E2E demo deployment (public-only). |
+| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes | BITE precompile probes. |
 
 Earlier deployments (v0, v2-cancun, v2-istanbul without inline encryption) are recorded as deprecated in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
 

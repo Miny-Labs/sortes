@@ -29,24 +29,11 @@ export default function HomePage() {
     return arr;
   }, [markets]);
 
-  const totals = useMemo(() => {
-    let stake = 0n;
-    let bets = 0n;
-    let open = 0;
-    for (const m of markets) {
-      if (m.status === MarketStatus.Cancelled) continue;
-      stake += m.totalStake;
-      bets += m.numBets;
-      if (m.status === MarketStatus.Open) open++;
-    }
-    return { stake, bets, open };
-  }, [markets]);
+  const openCount = sorted.filter((m) => m.status === MarketStatus.Open).length;
 
   return (
     <>
-      <QuickStart />
-
-      <Hero totals={totals} />
+      <Hero />
 
       <div className="mx-auto max-w-[1400px] px-6">
         <div className="divider" />
@@ -64,7 +51,7 @@ export default function HomePage() {
             </h2>
           </div>
           <div className="font-mono text-[11px] tabular-nums text-ink-400">
-            {sorted.length} total · <span className="text-ink-200">{totals.open}</span> open
+            {sorted.length} total · <span className="text-ink-200">{openCount}</span> open
           </div>
         </div>
 
@@ -84,59 +71,26 @@ export default function HomePage() {
   );
 }
 
-function Hero({ totals }: { totals: { stake: bigint; bets: bigint; open: number } }) {
-  const stake = (Number(totals.stake) / 1_000_000).toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  });
+function Hero() {
   return (
-    <section className="relative mx-auto max-w-[1400px] px-6 pb-16 pt-20 lg:pb-24 lg:pt-28">
+    <section className="relative mx-auto max-w-[1400px] px-6 pb-12 pt-16 lg:pb-20 lg:pt-24">
       <motion.h1
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-[14ch] text-balance font-display font-medium leading-[0.88] tracking-tightest text-ink-100"
-        style={{ fontSize: "clamp(3rem, 9vw, 8rem)" }}
+        className="font-display font-medium leading-[0.85] tracking-tightest text-ink-100"
+        style={{ fontSize: "clamp(5rem, 18vw, 16rem)" }}
       >
-        Public liquidity.{" "}
-        <span className="text-ink-500">Sealed</span> direction.
+        sortes
       </motion.h1>
 
-      <motion.p
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-10 max-w-[42ch] text-[16px] leading-relaxed text-ink-300 md:text-[18px]"
-      >
-        Sealed-bid prediction markets. Direction encrypted on-chain via SKALE BITE.
-      </motion.p>
-
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.35, duration: 0.6 }}
-        className="mt-14 flex flex-wrap items-baseline gap-x-8 gap-y-2 font-mono text-[12px] tabular-nums text-ink-400"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-10 lg:mt-14"
       >
-        <span>
-          <span className="text-[15px] text-ink-100">{totals.open}</span>{" "}
-          <span className="text-ink-500">markets open</span>
-        </span>
-        <span>
-          <span className="text-[15px] text-ink-100">{totals.bets.toString()}</span>{" "}
-          <span className="text-ink-500">bets sealed</span>
-        </span>
-        <span>
-          <span className="text-[15px] text-ink-100">{stake}</span>{" "}
-          <span className="text-ink-500">USDC.e public stake</span>
-        </span>
-        <a
-          href={`${EXPLORER_URL}/address/${ADDRESSES.SealedPool}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-ink-500 underline-offset-4 hover:text-ink-200 hover:underline"
-        >
-          contract {ADDRESSES.SealedPool.slice(0, 6)}…{ADDRESSES.SealedPool.slice(-4)}
-          <ArrowUpRight className="h-3 w-3" />
-        </a>
+        <QuickStart />
       </motion.div>
     </section>
   );

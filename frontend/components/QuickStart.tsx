@@ -72,66 +72,64 @@ export function QuickStart() {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="border-b border-white/[0.05]"
+        className="flex items-center gap-6 text-[13px]"
       >
-        <div className="mx-auto flex max-w-[1400px] items-center gap-x-6 px-6 py-3 text-[12px]">
-          <ol className="flex flex-1 flex-wrap items-baseline gap-x-6 gap-y-1">
-            <Step n={1} label="connect" done={step1Done} active={activeStep === 1}>
-              {!step1Done && (
-                <ConnectButton.Custom>
-                  {({ openConnectModal, mounted }) =>
-                    mounted ? <Cta onClick={openConnectModal}>connect →</Cta> : null
-                  }
-                </ConnectButton.Custom>
-              )}
-            </Step>
-            <Step
-              n={2}
-              label="claim 5 USDC.e"
-              done={step2Done}
-              active={activeStep === 2}
-              dim={!step1Done}
-            >
-              {step1Done && !step2Done && address && (
-                <Cta
-                  onClick={() =>
-                    claim(address).then(() => setTimeout(() => refetchBal(), 4000))
-                  }
-                  disabled={faucetStatus === "pending"}
-                >
-                  {faucetStatus === "pending" ? "claiming…" : "claim →"}
-                </Cta>
-              )}
-            </Step>
-            <Step
-              n={3}
-              label="place a sealed bet"
-              done={step3Done}
-              active={activeStep === 3}
-              dim={!step2Done}
-            >
-              {step2Done && !step3Done && (
-                <Cta
-                  onClick={() => {
-                    document
-                      .querySelector("[data-section='markets']")
-                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                >
-                  pick a market →
-                </Cta>
-              )}
-            </Step>
-          </ol>
-
-          <button
-            onClick={dismiss}
-            aria-label="Dismiss quick start"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-white/[0.04] hover:text-ink-200"
+        <ol className="flex flex-1 flex-wrap items-baseline gap-x-7 gap-y-2">
+          <Step n={1} label="connect" done={step1Done} active={activeStep === 1}>
+            {!step1Done && (
+              <ConnectButton.Custom>
+                {({ openConnectModal, mounted }) =>
+                  mounted ? <Cta onClick={openConnectModal}>connect →</Cta> : null
+                }
+              </ConnectButton.Custom>
+            )}
+          </Step>
+          <Step
+            n={2}
+            label="claim 5 USDC.e"
+            done={step2Done}
+            active={activeStep === 2}
+            dim={!step1Done}
           >
-            <X weight="bold" className="h-3.5 w-3.5" />
-          </button>
-        </div>
+            {step1Done && !step2Done && address && (
+              <Cta
+                onClick={() =>
+                  claim(address).then(() => setTimeout(() => refetchBal(), 4000))
+                }
+                disabled={faucetStatus === "pending"}
+              >
+                {faucetStatus === "pending" ? "claiming…" : "claim →"}
+              </Cta>
+            )}
+          </Step>
+          <Step
+            n={3}
+            label="place a private bet"
+            done={step3Done}
+            active={activeStep === 3}
+            dim={!step2Done}
+          >
+            {step2Done && !step3Done && (
+              <Cta
+                onClick={() => {
+                  document
+                    .querySelector("[data-section='markets']")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                pick a market →
+              </Cta>
+            )}
+          </Step>
+        </ol>
+
+        <button
+          onClick={dismiss}
+          aria-label="Dismiss quick start"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-white/[0.04] hover:text-ink-200"
+        >
+          <X weight="bold" className="h-3.5 w-3.5" />
+        </button>
       </motion.div>
     </AnimatePresence>
   );

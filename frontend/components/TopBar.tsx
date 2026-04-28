@@ -4,87 +4,39 @@ import { useState } from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Wallet, Drop, ArrowUpRight } from "@phosphor-icons/react";
+import { CaretRight } from "@phosphor-icons/react";
 
 import { WalletDrawer } from "./WalletDrawer";
-import { useFaucet } from "../lib/faucet";
 
 export function TopBar() {
   const { address, isConnected } = useAccount();
   const [walletOpen, setWalletOpen] = useState(false);
-  const { claim, status, message, txHash } = useFaucet();
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-ink-950/70 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
-          <Link href="/" className="group flex items-center gap-3">
+          <Link
+            href="/"
+            aria-label="Sortes home"
+            className="group inline-flex items-center gap-3"
+          >
             <Mark />
-            <div className="flex flex-col leading-none">
-              <span className="text-[15px] font-medium tracking-tight text-ink-100">sortes</span>
-              <span className="font-mono text-[9px] tracking-[0.2em] text-ink-500">SEALED · v4</span>
-            </div>
           </Link>
 
-          <div className="flex items-center gap-2">
-            {isConnected && address ? (
-              <button
-                onClick={() => claim(address)}
-                disabled={status === "pending"}
-                className="pill group hover:text-ink-100"
-                title="Drip 5 USDC.e from the dev faucet"
-              >
-                <Drop weight="duotone" className="h-3.5 w-3.5 text-signal" />
-                <span className="num">
-                  {status === "pending" ? "claiming…" : status === "ok" ? "claimed" : "5 USDC.e"}
-                </span>
-                {status === "ok" && txHash && (
-                  <ArrowUpRight weight="bold" className="h-3 w-3 opacity-50 group-hover:opacity-100" />
-                )}
-              </button>
-            ) : null}
-
-            {isConnected ? (
-              <button
-                onClick={() => setWalletOpen(true)}
-                className="pill hover:text-ink-100"
-                title="Wallet, balances, bets"
-              >
-                <Wallet weight="duotone" className="h-3.5 w-3.5" />
-                <span className="num">
-                  {address ? `${address.slice(0, 6)}…${address.slice(-4)}` : ""}
-                </span>
-              </button>
-            ) : (
-              <ConnectButton.Custom>
-                {({ openConnectModal, mounted }) =>
-                  mounted ? (
-                    <button onClick={openConnectModal} className="btn-primary text-xs">
-                      Connect
-                    </button>
-                  ) : null
-                }
-              </ConnectButton.Custom>
-            )}
-          </div>
+          {isConnected && address ? (
+            <WalletButton
+              address={address}
+              onClick={() => setWalletOpen(true)}
+            />
+          ) : (
+            <ConnectButton.Custom>
+              {({ openConnectModal, mounted }) =>
+                mounted ? <ConnectCta onClick={openConnectModal} /> : null
+              }
+            </ConnectButton.Custom>
+          )}
         </div>
-
-        {message && (
-          <div className="mx-auto max-w-[1400px] px-6 pb-3 text-xs text-ink-400">
-            <span className={status === "error" ? "text-warn" : "text-signal"}>{message}</span>
-            {txHash && (
-              <a
-                href={`https://base-sepolia-testnet-explorer.skalenodes.com/tx/${txHash}`}
-                target="_blank"
-                rel="noreferrer"
-                className="num ml-2 inline-flex items-center gap-1 underline-offset-2 hover:underline"
-              >
-                {txHash.slice(0, 10)}…
-                <ArrowUpRight className="h-3 w-3" />
-              </a>
-            )}
-          </div>
-        )}
       </header>
 
       <WalletDrawer open={walletOpen} onClose={() => setWalletOpen(false)} />
@@ -92,15 +44,57 @@ export function TopBar() {
   );
 }
 
+// Solid CTA for the not-connected state. The arrow is part of the button
+// affordance; on hover it slides forward.
+function ConnectCta({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group inline-flex h-11 items-center gap-2 rounded-full bg-ink-100 px-5 text-[13px] font-medium text-ink-950 transition-colors hover:bg-white"
+    >
+      Connect
+      <CaretRight
+        weight="bold"
+        className="h-3 w-3 -translate-x-0.5 transition-transform duration-200 group-hover:translate-x-0"
+      />
+    </button>
+  );
+}
+
+// Wallet pill for the connected state. Live signal-pulsing dot, mono
+// address, no chain icon, no balance — the wallet drawer carries the rest.
+function WalletButton({
+  address,
+  onClick,
+}: {
+  address: `0x${string}`;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="Open wallet"
+      className="group inline-flex h-11 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] pl-3 pr-4 text-[13px] text-ink-200 transition-colors hover:border-white/20 hover:text-ink-100"
+    >
+      <span className="relative inline-flex h-2 w-2">
+        <span className="absolute inset-0 animate-pulse-soft rounded-full bg-signal" />
+        <span className="relative h-2 w-2 rounded-full bg-signal/80" />
+      </span>
+      <span className="num text-[12px] tracking-tight">
+        {address.slice(0, 6)}…{address.slice(-4)}
+      </span>
+    </button>
+  );
+}
+
+// Brand mark — concentric arcs hinting at sealed / disclosed layers.
 function Mark() {
-  // Custom mark — concentric arcs hinting at sealed/disclosed layers.
-  // No emoji, no library glyph; this is the only place we draw the brand.
   return (
     <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
       <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink-100" fill="none" aria-hidden>
         <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.25" opacity="0.35" />
         <path d="M5 12a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="12" cy="12" r="1.6" fill="#34d399" />
+        <circle cx="12" cy="12" r="1.6" fill="oklch(0.79 0.16 160)" />
       </svg>
     </span>
   );

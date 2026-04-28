@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-[100dvh]">
         <Providers>
           <TopBar />
-          <main className="relative z-10">{children}</main>
+          <main className="relative">{children}</main>
         </Providers>
       </body>
     </html>

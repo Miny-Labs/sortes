@@ -2,9 +2,9 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, X, Lock } from "@phosphor-icons/react";
+import { ArrowUpRight, X, Lock, CaretDown } from "@phosphor-icons/react";
 
-import { ADDRESSES, EXPLORER_URL, MarketStatus, MarketStatusLabel } from "../lib/contracts";
+import { ADDRESSES, EXPLORER_URL, MarketStatus } from "../lib/contracts";
 import { useMarket } from "../lib/markets";
 
 import { BetForm } from "./BetForm";
@@ -14,6 +14,19 @@ interface Props {
   marketId: bigint | null;
   onClose: () => void;
 }
+
+// Friendlier status labels than what the contract returns. The MarketStatusLabel
+// in lib/contracts is for protocol consumers ("AwaitingDecryption", "Triggered");
+// these are for humans.
+const STATUS_LABEL: Record<MarketStatus, string> = {
+  [MarketStatus.None]: "—",
+  [MarketStatus.Open]: "Open",
+  [MarketStatus.AwaitingOracle]: "Closed · waiting on outcome",
+  [MarketStatus.AwaitingDecryption]: "Resolving",
+  [MarketStatus.Triggered]: "Resolving",
+  [MarketStatus.Resolved]: "Resolved",
+  [MarketStatus.Cancelled]: "Cancelled",
+};
 
 export function MarketDrawer({ marketId, onClose }: Props) {
   const open = marketId !== null;
@@ -37,31 +50,19 @@ export function MarketDrawer({ marketId, onClose }: Props) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-ink-950/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-ink-950/60 backdrop-blur-sm"
           />
           <motion.aside
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 220, damping: 30 }}
-            className="fixed right-0 top-0 z-40 flex h-[100dvh] w-full max-w-[560px] flex-col border-l border-white/[0.06] bg-ink-900"
+            className="fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-[560px] flex-col border-l border-white/[0.06] bg-ink-900"
           >
             <div className="flex items-start justify-between border-b border-white/[0.06] px-6 py-5">
               <div className="min-w-0 flex-1 pr-4">
-                <div className="flex items-center gap-2">
-                  <span className="num text-[10px] uppercase tracking-[0.18em] text-ink-500">
-                    market #{(marketId ?? 0n).toString().padStart(3, "0")}
-                  </span>
-                  {market && (
-                    <>
-                      <span className="text-ink-600">·</span>
-                      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink-400">
-                        {MarketStatusLabel[market.status]}
-                      </span>
-                    </>
-                  )}
-                </div>
-                <h2 className="mt-2 text-balance text-[20px] leading-snug tracking-tight text-ink-100">
+                {market && <StatusChip status={market.status} />}
+                <h2 className="mt-3 text-balance font-display text-[22px] leading-snug tracking-tight text-ink-100">
                   {market?.question ?? "—"}
                 </h2>
               </div>
@@ -77,10 +78,10 @@ export function MarketDrawer({ marketId, onClose }: Props) {
             <div className="flex-1 overflow-y-auto scrollbar-thin">
               {market ? (
                 <div className="space-y-8 px-6 py-6">
-                  <MarketMeta market={market} />
+                  <MarketSummary market={market} />
 
                   <section>
-                    <div className="label-eyebrow mb-3">Aggregate odds</div>
+                    <div className="label-eyebrow mb-3">Current odds</div>
                     <OddsBreakdown
                       marketId={market.id}
                       outcomeCount={market.outcomeCount}
@@ -91,16 +92,16 @@ export function MarketDrawer({ marketId, onClose }: Props) {
                   <div className="divider" />
 
                   <section>
-                    <div className="label-eyebrow mb-3">Place bet</div>
+                    <div className="label-eyebrow mb-3">Place a bet</div>
                     <BetForm
                       market={market}
                       onSubmitted={() => setRefreshKey((k) => k + 1)}
                     />
                   </section>
 
-                  <div className="divider" />
+                  <PrivacyNote />
 
-                  <ContractFooter />
+                  <DetailsAccordion />
                 </div>
               ) : (
                 <DrawerSkeleton />
@@ -113,25 +114,49 @@ export function MarketDrawer({ marketId, onClose }: Props) {
   );
 }
 
-function MarketMeta({ market }: { market: ReturnType<typeof useMarket>["data"] }) {
-  if (!market) return null;
-  const closes = new Date(Number(market.submissionDeadline) * 1000);
-  const resolves = new Date(Number(market.resolutionTime) * 1000);
+function StatusChip({ status }: { status: MarketStatus }) {
+  const open = status === MarketStatus.Open;
+  const resolved = status === MarketStatus.Resolved;
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px]">
-      <Metric label="Submissions close" value={closes.toLocaleString()} />
-      <Metric label="Earliest resolution" value={resolves.toLocaleString()} />
-      <Metric
-        label="Public stake"
+    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] tracking-tight text-ink-300">
+      <span className="relative inline-flex h-1.5 w-1.5">
+        <span
+          className={`absolute inset-0 rounded-full ${
+            open
+              ? "bg-signal animate-pulse-soft"
+              : resolved
+              ? "bg-ink-300"
+              : "bg-ink-600"
+          }`}
+        />
+      </span>
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
+function MarketSummary({ market }: { market: ReturnType<typeof useMarket>["data"] }) {
+  if (!market) return null;
+  const closes = Number(market.submissionDeadline) * 1000;
+  const closesIn = useReadableCountdown(closes);
+  const stake = (Number(market.totalStake) / 1_000_000).toFixed(2);
+
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-[13px]">
+      <SummaryItem
+        label="Closes in"
+        value={market.status === MarketStatus.Open ? closesIn : "Closed"}
+      />
+      <SummaryItem
+        label="Total at stake"
         value={
           <span className="num">
-            {(Number(market.totalStake) / 1_000_000).toFixed(2)}{" "}
-            <span className="text-ink-500">USDC.e</span>
+            {stake} <span className="text-ink-500">USDC.e</span>
           </span>
         }
       />
-      <Metric
-        label="Bets sealed"
+      <SummaryItem
+        label="Bets placed"
         value={
           <span className="num inline-flex items-center gap-1.5">
             <Lock weight="duotone" className="h-3 w-3 text-signal" />
@@ -139,28 +164,76 @@ function MarketMeta({ market }: { market: ReturnType<typeof useMarket>["data"] }
           </span>
         }
       />
+      <SummaryItem
+        label="Resolves around"
+        value={new Date(Number(market.resolutionTime) * 1000).toLocaleDateString(
+          undefined,
+          { month: "short", day: "numeric" },
+        )}
+      />
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: React.ReactNode }) {
+function SummaryItem({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="label-eyebrow">{label}</div>
+      <div className="text-[11px] text-ink-500">{label}</div>
       <div className="mt-1 text-ink-100">{value}</div>
     </div>
   );
 }
 
-function ContractFooter() {
+// Plain-language summary of how the privacy works. Replaces the older
+// PHASE 3 / N≥2 / AAD / CTX explanations.
+function PrivacyNote() {
   return (
-    <div className="space-y-3 text-[11px] text-ink-500">
-      <div className="label-eyebrow">On-chain references</div>
-      <div className="space-y-1.5">
-        <ExternalRow label="SealedPool" address={ADDRESSES.SealedPool} />
-        <ExternalRow label="cnfUSDC.e wrapper" address={ADDRESSES.ConfidentialWrapper_cUSDC} />
-        <ExternalRow label="USDC.e (bridged)" address={ADDRESSES.USDC_e} />
+    <div className="rounded-2xl border border-white/[0.05] bg-white/[0.015] p-5">
+      <div className="flex items-start gap-3">
+        <Lock weight="duotone" className="mt-0.5 h-4 w-4 shrink-0 text-signal" />
+        <div className="space-y-2 text-[12.5px] leading-relaxed text-ink-300">
+          <p>
+            Your bet is encrypted on-chain. No one can see which side you took
+            until at least two other people have also bet — only then do the
+            current odds update.
+          </p>
+          <p className="text-ink-400">
+            When the market resolves, winners are paid automatically. Your stake
+            and choice are revealed only at settlement, not before.
+          </p>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// Collapsible "for the curious" section with the contract addresses. Hidden
+// by default so regular users don't get a wall of hex.
+function DetailsAccordion() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-t border-white/[0.05] pt-5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.14em] text-ink-500 transition-colors hover:text-ink-300"
+        aria-expanded={open}
+      >
+        <CaretDown
+          weight="bold"
+          className={`h-3 w-3 transition-transform ${open ? "rotate-0" : "-rotate-90"}`}
+        />
+        for the curious — contracts
+      </button>
+      {open && (
+        <div className="mt-4 space-y-1.5 text-[11px] text-ink-500">
+          <ExternalRow label="Market pool" address={ADDRESSES.SealedPool} />
+          <ExternalRow label="USDC.e (bridged)" address={ADDRESSES.USDC_e} />
+          <ExternalRow
+            label="cnfUSDC.e (private wrapper)"
+            address={ADDRESSES.ConfidentialWrapper_cUSDC}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -194,4 +267,24 @@ function DrawerSkeleton() {
       ))}
     </div>
   );
+}
+
+// Inline countdown helper. "5d 3h", "2h 14m", "in 12 minutes". No raw
+// timestamps in the user-facing view.
+function useReadableCountdown(targetMs: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const ms = targetMs - now;
+  if (ms <= 0) return "Closed";
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
 }

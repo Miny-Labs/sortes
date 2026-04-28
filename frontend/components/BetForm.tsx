@@ -5,7 +5,7 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatUnits, parseUnits, zeroAddress } from "viem";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Lock, Key, ShieldCheck, ArrowUpRight, Drop, Eye, EyeSlash } from "@phosphor-icons/react";
+import { Lock, ShieldCheck, ArrowUpRight, Drop, Eye, EyeSlash } from "@phosphor-icons/react";
 
 import {
   ADDRESSES,
@@ -219,13 +219,13 @@ export function BetForm({ market, onSubmitted }: Props) {
     if (isPending) return "Confirming…";
     if (market.status !== 1) return "Market closed";
     if (mode === "sealed") {
-      if (insufficientPublicBalance) return "Insufficient USDC.e";
-      if (sealedNeedsApproval) return "Approve USDC.e";
-      return "Place sealed bet";
+      if (insufficientPublicBalance) return "Not enough USDC.e";
+      if (sealedNeedsApproval) return "Allow USDC.e";
+      return "Place bet";
     }
-    if (!confidentialEnabled) return "Confidential not enabled here";
-    if (confidentialNeedsApproval) return "Approve cnfUSDC.e";
-    return "Place confidential bet";
+    if (!confidentialEnabled) return "Private mode not available here";
+    if (confidentialNeedsApproval) return "Allow private USDC.e";
+    return "Place private bet";
   })();
 
   const ctaDisabled =
@@ -253,13 +253,13 @@ export function BetForm({ market, onSubmitted }: Props) {
       />
 
       <div>
-        <div className="label-eyebrow">Direction</div>
+        <div className="text-[11px] text-ink-500">Your pick</div>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {Array.from({ length: Number(market.outcomeCount) }, (_, i) => {
             const isYes = market.outcomeCount === 2n && i === 1;
             const isNo = market.outcomeCount === 2n && i === 0;
             const selected = outcome === BigInt(i);
-            const label = isYes ? "YES" : isNo ? "NO" : `Outcome ${i}`;
+            const label = isYes ? "Yes" : isNo ? "No" : `Outcome ${i}`;
             const baseTone = isYes
               ? "border-signal/30 text-signal hover:border-signal/60"
               : isNo
@@ -274,7 +274,7 @@ export function BetForm({ market, onSubmitted }: Props) {
               <button
                 key={i}
                 onClick={() => setOutcome(BigInt(i))}
-                className={`btn-base h-12 rounded-xl border text-[13px] font-medium tracking-wide transition-all ${
+                className={`btn-base h-14 rounded-xl border text-[15px] font-medium tracking-tight transition-all ${
                   selected ? selectedTone : baseTone
                 }`}
               >
@@ -287,21 +287,19 @@ export function BetForm({ market, onSubmitted }: Props) {
 
       <div>
         <div className="flex items-baseline justify-between">
-          <div className="label-eyebrow">Stake</div>
+          <div className="text-[11px] text-ink-500">How much</div>
           {mode === "sealed" ? (
-            <div className="font-mono text-[11px] tabular-nums text-ink-500">
-              balance{" "}
-              <span className={insufficientPublicBalance ? "text-warn" : "text-ink-300"}>
-                {Number(balanceReadable).toFixed(2)}
-              </span>{" "}
-              USDC.e
+            <div className="text-[11px] text-ink-500">
+              you have{" "}
+              <span
+                className={`num ${insufficientPublicBalance ? "text-warn" : "text-ink-300"}`}
+              >
+                {Number(balanceReadable).toFixed(2)} USDC.e
+              </span>
             </div>
           ) : (
-            <div className="font-mono text-[11px] tabular-nums text-ink-500">
-              cnfUSDC.e{" "}
-              <span className="text-ink-300 inline-flex items-center gap-1">
-                <Lock className="h-3 w-3" /> encrypted
-              </span>
+            <div className="inline-flex items-center gap-1 text-[11px] text-ink-500">
+              <Lock className="h-3 w-3" /> private balance hidden
             </div>
           )}
         </div>
@@ -317,7 +315,7 @@ export function BetForm({ market, onSubmitted }: Props) {
               className="input-mono pr-20"
             />
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-500">
-              {mode === "sealed" ? "USDC.e" : "cnfUSDC.e"}
+              USDC.e
             </span>
           </div>
         </div>
@@ -346,52 +344,28 @@ export function BetForm({ market, onSubmitted }: Props) {
           <button
             onClick={() => claim(address).then(() => setTimeout(() => refetchBalance(), 4000))}
             disabled={faucetStatus === "pending"}
-            className="mt-3 inline-flex items-center gap-2 text-[11px] text-signal underline-offset-4 hover:underline"
+            className="mt-3 inline-flex items-center gap-2 text-[12px] text-signal underline-offset-4 hover:underline"
           >
             <Drop className="h-3.5 w-3.5" />
             {faucetStatus === "pending"
-              ? "claiming faucet…"
-              : "Need more? Claim 5 USDC.e from the faucet"}
+              ? "sending…"
+              : "Get 5 free USDC.e from the faucet"}
           </button>
         )}
 
         {mode === "confidential" && !confidentialEnabled && (
-          <div className="mt-3 rounded-xl border border-dashed border-white/[0.08] p-3 text-[11px] leading-relaxed text-ink-500">
-            This market is public-only. The operator hasn't enabled cnfUSDC.e here.
-            Switch back to <span className="text-ink-300">Sealed</span> to bet, or pick another
-            market with confidential mode active.
+          <div className="mt-3 rounded-xl border border-dashed border-white/[0.08] p-3 text-[12px] leading-relaxed text-ink-500">
+            This market doesn't allow private bets. Switch back to{" "}
+            <span className="text-ink-300">Public</span>, or pick a different market.
           </div>
         )}
         {mode === "confidential" && confidentialEnabled && (
-          <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[11px] leading-relaxed text-ink-400">
-            Confidential mode: <span className="text-ink-200">stake amount and direction both
-            encrypted</span>. Requires cnfUSDC.e in your wallet — wrap from the wallet drawer
-            first if needed.
+          <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[12px] leading-relaxed text-ink-400">
+            Private mode also hides{" "}
+            <span className="text-ink-200">how much</span> you bet, not just which side.
+            You'll need a private USDC.e balance — open the wallet drawer to convert some.
           </div>
         )}
-      </div>
-
-      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="label-eyebrow flex items-center gap-1.5">
-              <Key className="h-3 w-3" />
-              Viewer key
-            </div>
-            <div className="mt-1 text-[12px] leading-relaxed text-ink-400">
-              {keyShort
-                ? "Saved in this browser. Used to decrypt your payout after resolution."
-                : "Auto-generated when you place your first bet. Stored locally only."}
-            </div>
-          </div>
-          {keyShort ? (
-            <span className="num shrink-0 text-[11px] text-ink-300">{keyShort}</span>
-          ) : (
-            <button onClick={generateViewerKey} className="btn-ghost text-xs">
-              Generate now
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="space-y-2">
@@ -403,8 +377,8 @@ export function BetForm({ market, onSubmitted }: Props) {
           <ShieldCheck weight="duotone" className="h-3.5 w-3.5 text-signal" />
           <span>
             {mode === "sealed"
-              ? "Sealed direction via SKALE BITE Phase 3. Aggregate odds reveal in batches of two or more (anti-deanonymization)."
-              : "Direction and stake amount both encrypted via SKALE BITE Phase 3 against cnfUSDC.e collateral. Same unified pot as public bets."}
+              ? "Your pick stays private. The amount is visible. Odds update only after at least two new bets land."
+              : "Both your pick and your stake amount stay private until the market resolves."}
           </span>
         </div>
       </div>
@@ -419,7 +393,7 @@ export function BetForm({ market, onSubmitted }: Props) {
       {success && !success.isFirst && (
         <div className="rounded-xl border border-signal/20 bg-signal/[0.04] p-4 text-[12px]">
           <div className="text-signal">
-            {success.mode === "confidential" ? "Confidential bet sealed." : "Sealed bet placed."}
+            {success.mode === "confidential" ? "Private bet placed." : "Bet placed."}
           </div>
           <a
             href={`${EXPLORER_URL}/tx/${success.tx}`}
@@ -457,15 +431,15 @@ function ModeToggle({
         active={mode === "sealed"}
         onClick={() => onChange("sealed")}
         icon={<Eye weight="duotone" className="h-3.5 w-3.5" />}
-        label="Sealed"
-        sub="direction private"
+        label="Public"
+        sub="amount visible"
       />
       <ModeButton
         active={mode === "confidential"}
         onClick={() => onChange("confidential")}
         icon={<EyeSlash weight="duotone" className="h-3.5 w-3.5" />}
-        label="Confidential"
-        sub={confidentialEnabled ? "+ amount private" : "not enabled"}
+        label="Private"
+        sub={confidentialEnabled ? "amount hidden" : "unavailable"}
         dim={!confidentialEnabled}
       />
     </div>
@@ -512,11 +486,11 @@ function ConnectGate() {
     <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
       <div className="flex items-center gap-2 text-[13px] text-ink-100">
         <Lock weight="duotone" className="h-4 w-4 text-signal" />
-        Connect to place a sealed bet
+        Connect to place a bet
       </div>
       <p className="text-[12px] leading-relaxed text-ink-500">
         You can browse, inspect odds, and read the contract without a wallet. Connecting is only
-        needed to sign the encrypted bet payload.
+        needed when you actually want to bet.
       </p>
       <ConnectButton.Custom>
         {({ openConnectModal, mounted }) =>
@@ -590,17 +564,17 @@ function FirstBetPanel({
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       className="rounded-2xl border border-signal/20 bg-signal/[0.04] p-5"
     >
-      <div className="label-eyebrow flex items-center gap-1.5 text-signal">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-signal">
         <Lock weight="fill" className="h-3 w-3" />
-        first sealed bet
+        your first bet
       </div>
       <div className="mt-2 font-display text-[20px] leading-tight tracking-tight text-ink-100">
-        Your direction is locked on chain.
+        Locked in.
       </div>
-      <p className="mt-3 max-w-[44ch] text-[12px] leading-relaxed text-ink-400">
+      <p className="mt-3 max-w-[44ch] text-[12.5px] leading-relaxed text-ink-400">
         {mode === "confidential"
-          ? "Stake amount and direction both encrypted via Phase 3 against cnfUSDC.e collateral."
-          : "Encrypted via SKALE BITE Phase 3. The aggregate odds bar for this market reveals your stake once the next 2-bet batch settles. Come back when the market resolves to redeem."}
+          ? "Your pick and the amount you bet are both private. Come back when the market resolves to redeem if you win."
+          : "Your pick is private. The odds update once at least two new bets land. Come back when the market resolves to redeem if you win."}
       </p>
       <div className="mt-4 flex items-center justify-between gap-3">
         <a

@@ -35,6 +35,8 @@ export default function HomePage() {
     <>
       <Hero />
 
+      <HowItWorks />
+
       <div className="mx-auto max-w-[1400px] px-6">
         <div className="divider" />
       </div>
@@ -63,8 +65,6 @@ export default function HomePage() {
           <BentoGrid markets={sorted} onOpen={(id) => setOpenId(id)} />
         )}
       </section>
-
-      <HowItWorks />
 
       <Footer />
 

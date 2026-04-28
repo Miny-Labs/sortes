@@ -1,34 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { CaretRight } from "@phosphor-icons/react";
 
 import { WalletDrawer } from "./WalletDrawer";
 
+// Floating, transparent topbar. No logo, no background, no border. Just the
+// wallet/connect button on the right. The button itself is a refined glass
+// pill that reads cleanly over the hero video and over the markets bento.
 export function TopBar() {
   const { address, isConnected } = useAccount();
   const [walletOpen, setWalletOpen] = useState(false);
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-ink-950/70 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
-          <Link
-            href="/"
-            aria-label="Sortes home"
-            className="group inline-flex items-center gap-3"
-          >
-            <Mark />
-          </Link>
-
+      <header className="sticky top-0 z-30">
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-end px-6">
           {isConnected && address ? (
-            <WalletButton
-              address={address}
-              onClick={() => setWalletOpen(true)}
-            />
+            <WalletButton address={address} onClick={() => setWalletOpen(true)} />
           ) : (
             <ConnectButton.Custom>
               {({ openConnectModal, mounted }) =>
@@ -44,13 +35,13 @@ export function TopBar() {
   );
 }
 
-// Solid CTA for the not-connected state. The arrow is part of the button
-// affordance; on hover it slides forward.
+// Glass pill with a subtle keyline. On hover, the pill fills with the ink-100
+// surface so the affordance is unambiguous. Caret nudges forward on hover.
 function ConnectCta({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group inline-flex h-11 items-center gap-2 rounded-full bg-ink-100 px-5 text-[13px] font-medium text-ink-950 transition-colors hover:bg-white"
+      className="group inline-flex h-11 items-center gap-2 rounded-full border border-white/15 bg-ink-950/40 px-5 text-[13px] font-medium text-ink-100 backdrop-blur-md transition-all duration-200 ease-out hover:border-white/0 hover:bg-ink-100 hover:text-ink-950"
     >
       Connect
       <CaretRight
@@ -61,8 +52,8 @@ function ConnectCta({ onClick }: { onClick: () => void }) {
   );
 }
 
-// Wallet pill for the connected state. Live signal-pulsing dot, mono
-// address, no chain icon, no balance — the wallet drawer carries the rest.
+// Wallet pill (connected). Same glass treatment, with a pulsing signal dot
+// in front of the address.
 function WalletButton({
   address,
   onClick,
@@ -74,7 +65,7 @@ function WalletButton({
     <button
       onClick={onClick}
       aria-label="Open wallet"
-      className="group inline-flex h-11 items-center gap-3 rounded-full border border-white/10 bg-white/[0.03] pl-3 pr-4 text-[13px] text-ink-200 transition-colors hover:border-white/20 hover:text-ink-100"
+      className="group inline-flex h-11 items-center gap-3 rounded-full border border-white/15 bg-ink-950/40 px-4 text-[13px] text-ink-200 backdrop-blur-md transition-all duration-200 ease-out hover:border-white/30 hover:text-ink-100"
     >
       <span className="relative inline-flex h-2 w-2">
         <span className="absolute inset-0 animate-pulse-soft rounded-full bg-signal" />
@@ -84,18 +75,5 @@ function WalletButton({
         {address.slice(0, 6)}…{address.slice(-4)}
       </span>
     </button>
-  );
-}
-
-// Brand mark — concentric arcs hinting at sealed / disclosed layers.
-function Mark() {
-  return (
-    <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-ink-100" fill="none" aria-hidden>
-        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.25" opacity="0.35" />
-        <path d="M5 12a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="12" cy="12" r="1.6" fill="oklch(0.79 0.16 160)" />
-      </svg>
-    </span>
   );
 }

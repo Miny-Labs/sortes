@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.27;
 
 import { Script, console2 } from "forge-std/Script.sol";
 import { BITE } from "@skalenetwork/bite-solidity/BITE.sol";

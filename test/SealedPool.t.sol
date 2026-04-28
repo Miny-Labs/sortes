@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.27;
 
 import { Test } from "forge-std/Test.sol";
 import { BiteMock } from "@skalenetwork/bite-solidity/test/BiteMock.sol";

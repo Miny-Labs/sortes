@@ -16,55 +16,84 @@
     "Permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
   },
   "biteProtocol": {
-    "phase1": "Encrypted Transactions (live, magic address 0x4249...5044)",
-    "phase2": "Conditional Transactions (CTX, precompile 0x1B) - live on testnet per SKALE Labs",
-    "phase3": "Re-encryption (EncryptECIES 0x1C, EncryptTE 0x1D) - live on testnet, mainnet pending core infra tweaks per SKALE Labs",
+    "phase1_encryptedTransactions": "live (per SKALE Labs)",
+    "phase2_conditionalTransactions": "live on testnet (per SKALE Labs)",
+    "phase3_reEncryption": "live on testnet (verified by us via direct precompile probe)",
     "canonical": {
       "submitCTXPrecompile": "0x000000000000000000000000000000000000001B",
       "encryptECIESPrecompile": "0x000000000000000000000000000000000000001C",
       "encryptTEPrecompile": "0x000000000000000000000000000000000000001D"
-    }
+    },
+    "verified": {
+      "EncryptTE": {
+        "tx": "0x5178992c8e0351fa977a2766fe2ebb9002abbd070b50886b9aff961a57e41325",
+        "status": "success",
+        "gasUsed": 265076,
+        "ciphertextBytes": 324,
+        "callerContract": "0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0"
+      },
+      "EncryptECIES_with_valid_secp256k1": {
+        "tx": "0x30c93529ec9b3c2a040091972490ad921cd257088722a1f4bfdf37191d6d5f11",
+        "status": "success",
+        "gasUsed": 125551,
+        "ciphertextBytes": 97,
+        "publicKey": "secp256k1 generator point",
+        "callerContract": "0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0"
+      }
+    },
+    "criticalFinding": "BITE precompiles require evm_version='istanbul' as the SKALE programmable-privacy skill specifies. Compiling with evm_version='cancun' produces bytecode that cannot successfully invoke 0x1B/0x1C/0x1D - the calls OOG without returning. Failed tx 0x6abf4c4282bbb2e700bca921e1a3d3feddeb5d415987c73897fec1b25f10ac4c was caller compiled for cancun. After switching to istanbul, precompile invocation works as documented.",
+    "secondCriticalFinding": "EncryptECIES validates the public key is on the secp256k1 curve. Passing arbitrary (x, y) bytes32 pairs causes OOG. Failed tx 0x42fb708aa7d6fc30517a370ee3f63505a513c2c3a5db57441888d4d07849ef6f used invalid (0x...01, 0x...02). Real secp256k1 points work."
   },
   "sortes": {
     "SealedPool": {
-      "version": "v2",
-      "address": "0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751",
-      "deploymentTx": "0x99f275b8db52d1bb4841ec2666b78adf088660c6b4486ac468904a2a731456c8",
+      "version": "v2-istanbul",
+      "address": "0xa287C8579D04c480cCCCa02cf240F00aFb16F44E",
+      "deploymentTx": "0xf4a24d7085e5149f157f54b99455925392d862c4d344c3875e01dd8ad8485976",
       "owner": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "treasury": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "verified": true,
-      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751",
+      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0xa287c8579d04c480cccca02cf240f00afb16f44e",
+      "evmVersion": "istanbul",
+      "solcVersion": "0.8.27",
       "phaseIntegration": {
-        "phase2_ctx": "BITE.submitCTX(submitCtxAddress=0x1B) inside triggerResolution",
-        "phase3_ecies": "BITE.encryptECIES(encryptEciesAddress=0x1C) inside onDecrypt to re-encrypt each winner's payout under their viewer key",
-        "phase3_te": "BITE.encryptTE(encryptTeAddress=0x1D) NOT called by contract; TE encryption performed client-side via bite-ts before submitSealedBet"
+        "phase2_ctx": "BITE.submitCTX(0x1B) inside triggerResolution",
+        "phase3_ecies": "BITE.encryptECIES(0x1C) inside onDecrypt to re-encrypt each winner's payout under their viewer key",
+        "phase3_te": "TE encryption performed client-side via bite-ts before submitSealedBet"
       },
       "config": {
         "submitCtxAddress": "0x000000000000000000000000000000000000001B",
         "encryptEciesAddress": "0x000000000000000000000000000000000000001C",
         "encryptTeAddress": "0x000000000000000000000000000000000000001D",
-        "ctxCallbackValueWei": "5000000000000000",
-        "ctxCallbackValueFormatted": "0.005 CREDIT (testnet sizing; mainnet target 0.06 ETH/SFUEL per SKALE skill)",
-        "ctxReserve": "50000000000000000",
-        "ctxReserveFormatted": "0.05 CREDIT (10x callback fee minimum)",
+        "ctxCallbackValueWei": "2000000000000000",
+        "ctxCallbackValueFormatted": "0.002 CREDIT (testnet sizing; mainnet target 0.06 ETH/SFUEL per SKALE skill)",
+        "ctxReserve": "20000000000000000",
+        "ctxReserveFormatted": "0.02 CREDIT (10x callback fee minimum)",
         "minCtxReserveCallbacks": 10,
         "ctxGasLimit": 2500000,
         "protocolFeeBps": 100,
         "maxBetsPerMarket": 200
       }
     },
-    "SealedPool_v0_deprecated": {
-      "version": "v0",
-      "address": "0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e",
-      "status": "deprecated",
-      "note": "Initial single-encryption deployment with incorrect callbackFee (1000 gwei). Replaced by v2 above. Will be left on chain for record but not used."
+    "deprecated_deployments": {
+      "v2_cancun": {
+        "address": "0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751",
+        "reason": "Compiled with evm_version=cancun which is incompatible with BITE precompiles on SKALE Base Sepolia. Replaced by v2-istanbul above."
+      },
+      "v0_cancun": {
+        "address": "0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e",
+        "reason": "Initial single-encryption deployment with incorrect callbackFee (1000 gwei). Replaced by v2-istanbul above."
+      }
+    },
+    "PrecompileSmoke_diagnostic": {
+      "address": "0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0",
+      "purpose": "Diagnostic contract that exposes BITE.encryptTE and BITE.encryptECIES via thin wrappers. Used to verify precompiles are live. Can be reused for future probes."
     }
   },
   "developmentStubs": {
-    "note": "Auxiliary contracts deployed during testnet bring-up. Not used by the v2 production contract.",
+    "note": "Auxiliary contracts. Not used by the production v2-istanbul contract.",
     "BiteMock": "0x3Ddb9f8e7AF659A89d09971113e93d813F8BB05D",
     "SubmitCTXMock": "0x1B378355bd3C05213d2044aECD59435f368E06F1",
     "IdentityCTX": "0x75F76c0cAb183AFEE870D00007e21d74402Fed27",
-    "PrecompileSmoke": "0x642713352F2a9FCf26398f2aD838618E355a5A26"
+    "PrecompileSmoke_cancun": "0x642713352F2a9FCf26398f2aD838618E355a5A26"
   }
 }

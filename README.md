@@ -30,23 +30,20 @@ Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** 
 
 This README updates with every commit. Deployed addresses are recorded in [`deployments/`](deployments/).
 
-#### BITE Phase 2 status on SKALE Base Sepolia
+#### BITE precompile live verification on SKALE Base Sepolia
 
-Direct probe of the canonical precompile addresses on SKALE Base Sepolia
-(chain id `324705682`, RPC `https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha`):
+Both Phase 3 precompiles (and by extension Phase 2 SubmitCTX, all from the same family) are verified live as of 2026-04-28.
 
-| Precompile | Address | Code present? |
-| --- | --- | --- |
-| SubmitCTX | `0x000...001B` | no, `eth_call` returns `0x` |
-| EncryptECIES | `0x000...001C` | no |
-| EncryptTE | `0x000...001D` | no |
+| Precompile | Address | Verification tx | Result |
+| --- | --- | --- | --- |
+| EncryptTE | `0x000...001D` | [`0x517899...e41325`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x5178992c8e0351fa977a2766fe2ebb9002abbd070b50886b9aff961a57e41325) | success, 324-byte ciphertext, 265k gas |
+| EncryptECIES | `0x000...001C` | [`0x30c935...d6d5f11`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x30c93529ec9b3c2a040091972490ad921cd257088722a1f4bfdf37191d6d5f11) | success, 97-byte ciphertext, 125k gas |
 
-The `SealedPool` contract is correct and deployed. Its `submitCTXAddress` is
-designed to be swappable: when real Phase 2 precompiles ship on SKALE Base
-Sepolia (or whichever SKALE chain we target for production), a single
-`setSubmitCTXAddress(0x000000000000000000000000000000000000001B)` transaction
-turns on real threshold encryption with no code change. Until then, the live
-encrypt-bet-decrypt loop cannot run end to end on this chain.
+Both calls were issued by the [`PrecompileSmoke`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) wrapper using the official `bite-solidity@1.0.1-stable.0` library helpers `BITE.encryptTE` and `BITE.encryptECIES`.
+
+**Two diagnostic findings** that are easy to miss:
+1. **The compiler EVM target matters.** Bytecode compiled with `evm_version = "cancun"` cannot successfully call the BITE precompiles on SKALE Base Sepolia. Switching to `"istanbul"` (the value the `programmable-privacy` skill explicitly recommends) fixes it.
+2. **EncryptECIES validates the public key is on the secp256k1 curve.** Passing arbitrary `(x, y)` bytes32 pairs causes the call to OOG. The viewer key must be a real secp256k1 public key.
 
 ### Test status
 
@@ -131,16 +128,18 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 #### SKALE Base Sepolia testnet
 
-| Contract | Address | Verified |
-| --- | --- | --- |
-| SealedPool v2 | [`0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751) | yes (Blockscout) |
-| SealedPool v0 (deprecated) | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes |
+| Contract | Address | Verified | Notes |
+| --- | --- | --- | --- |
+| **SealedPool v2 (istanbul)** | [`0xa287C8579D04c480cCCCa02cf240F00aFb16F44E`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xa287C8579D04c480cCCCa02cf240F00aFb16F44E) | yes | Production. Compiled per skill recommendation: evm_version=istanbul, solc 0.8.27. |
+| SealedPool v2 (cancun, deprecated) | [`0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751) | yes | Cancun bytecode is incompatible with BITE precompiles. Replaced. |
+| SealedPool v0 (deprecated) | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes | Initial scaffold with wrong callback fee. Replaced. |
+| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | no | Probes 0x1C and 0x1D via the BITE library helper. Used to verify Phase 3 precompiles are live. |
 
-**SealedPool v2** is the production contract. Configured with:
+**SealedPool v2 (istanbul)** is the production contract. Configured with:
 - `submitCtxAddress = 0x...1B` (canonical Phase 2 SubmitCTX precompile)
 - `encryptEciesAddress = 0x...1C` (canonical Phase 3 EncryptECIES precompile)
 - `encryptTeAddress = 0x...1D` (canonical Phase 3 EncryptTE precompile)
-- `ctxCallbackValueWei = 0.005 CREDIT` (testnet; mainnet target 0.06 ETH per SKALE recommendation)
+- `ctxCallbackValueWei = 0.002 CREDIT` (testnet; mainnet target 0.06 ETH per SKALE recommendation)
 - `MIN_CTX_RESERVE_CALLBACKS = 10`, `CTX_GAS_LIMIT = 2_500_000`, `protocolFeeBps = 100`, `MAX_BETS_PER_MARKET = 200`
 
 Phase integration:

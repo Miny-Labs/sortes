@@ -493,6 +493,53 @@ contract SealedPoolTest is Test {
         pool.triggerAggregateReveal(marketId);
     }
 
+    // ─── C5: Pluggable oracle adapter ──────────────────────────────────
+
+    function test_OracleAdapterCanReportOutcome() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        _betDual(alice, marketId, 1, 100 * ONE_USDC);
+
+        address adapter = address(0xADAFE);
+        vm.prank(owner);
+        pool.setMarketOracleAdapter(marketId, adapter);
+        assertEq(pool.marketOracleAdapter(marketId), adapter);
+
+        skip(2 days);
+
+        // Adapter calls reportOutcomeFromAdapter — must succeed.
+        vm.prank(adapter);
+        pool.reportOutcomeFromAdapter(marketId, 1);
+
+        assertEq(
+            uint256(pool.statusOf(marketId)),
+            uint256(ISortesSealedPool.MarketStatus.AwaitingDecryption)
+        );
+    }
+
+    function test_NonAdapterCannotReportOutcomeFromAdapter() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        skip(2 days);
+        vm.prank(alice);
+        vm.expectRevert(SealedPool.NotAuthorizedOracleAdapter.selector);
+        pool.reportOutcomeFromAdapter(marketId, 1);
+    }
+
+    function test_OwnerStillUsesSetOracleOutcomeEvenWithAdapter() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        address adapter = address(0xADAFE);
+        vm.prank(owner);
+        pool.setMarketOracleAdapter(marketId, adapter);
+
+        skip(2 days);
+        // Owner can still resolve via the original entrypoint.
+        vm.prank(owner);
+        pool.setOracleOutcome(marketId, 1);
+        assertEq(
+            uint256(pool.statusOf(marketId)),
+            uint256(ISortesSealedPool.MarketStatus.AwaitingDecryption)
+        );
+    }
+
     function test_WithdrawExcessReserveRespectsMinimum() public {
         // Initial reserve is RESERVE_AMOUNT (= 20x). Min is 10x. So 10x is
         // freely withdrawable. Withdraw it, then verify we cannot dip into

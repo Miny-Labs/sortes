@@ -137,6 +137,13 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
     ///         aggregate. triggerAggregateReveal advances this cursor.
     mapping(uint256 marketId => uint256) public aggregatedUpToIndex;
 
+    /// @notice Optional external oracle adapter authorized to call
+    ///         reportOutcomeFromAdapter for a given market. address(0) means
+    ///         only the contract owner may set the outcome (default v1
+    ///         behaviour). Adapters wire in UMA OOv3, Reality.eth, or
+    ///         multisig operators without modifying the pool core.
+    mapping(uint256 marketId => address adapter) public marketOracleAdapter;
+
     // ─── Errors ───────────────────────────────────────────────────────
 
     error MarketNotOpen();
@@ -167,6 +174,7 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
     error InsufficientCtxReserve(uint256 required, uint256 available);
     error InvalidViewerKey();
     error NotEnoughForAggregate(uint256 unaggregated, uint256 minimum);
+    error NotAuthorizedOracleAdapter();
 
     // ─── Events not on the interface ───────────────────────────────
 
@@ -400,6 +408,31 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
 
     /// @inheritdoc ISortesSealedPool
     function setOracleOutcome(uint256 marketId, uint256 outcome) external override onlyOwner {
+        _reportOutcome(marketId, outcome);
+    }
+
+    /// @notice Owner sets the resolution oracle adapter for a specific
+    ///         market. Once set, the adapter (and only the adapter) can
+    ///         call reportOutcomeFromAdapter for that market. Pass
+    ///         address(0) to revoke.
+    function setMarketOracleAdapter(uint256 marketId, address adapter) external onlyOwner {
+        // Read marketId only to validate existence.
+        _market(marketId);
+        marketOracleAdapter[marketId] = adapter;
+    }
+
+    /// @notice Pluggable resolution path. The adapter that owns this
+    ///         market's resolution authority calls in to set the outcome.
+    ///         For UMA cross-chain: a UmaOracleSink on this chain receives
+    ///         the resolved assertion via the SKALE native bridge from
+    ///         Base Sepolia and calls this function.
+    function reportOutcomeFromAdapter(uint256 marketId, uint256 outcome) external {
+        if (msg.sender != marketOracleAdapter[marketId]) revert NotAuthorizedOracleAdapter();
+        _reportOutcome(marketId, outcome);
+    }
+
+    /// @dev Shared validation + state transition for both oracle paths.
+    function _reportOutcome(uint256 marketId, uint256 outcome) private {
         Market storage m = _market(marketId);
         if (m.status != MarketStatus.Open && m.status != MarketStatus.AwaitingOracle) {
             revert MarketNotOpen();

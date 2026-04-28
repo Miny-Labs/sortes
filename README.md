@@ -50,11 +50,11 @@ Both calls were issued by the [`PrecompileSmoke`](https://base-sepolia-testnet-e
 
 ```
 forge test
-30 passed, 0 failed
+37 passed, 0 failed
 ```
 
 - 4 sanity tests (precompile addresses, type imports)
-- 26 SealedPool v2 tests covering: constructor reserve invariants, lifecycle, oracle path, dual-encryption submission, viewer key storage, the full happy path with **Phase 3 ECIES payout re-encryption** verified, no-winners refund, cancellation, fee cap, callback security, max-bets cap, withdraw-excess-reserve invariant.
+- 33 SealedPool tests covering: constructor reserve invariants, lifecycle, oracle path, dual-encryption submission, viewer key storage, the full happy path with **Phase 3 ECIES payout re-encryption** verified, no-winners refund, cancellation, fee cap, callback security, max-bets cap, withdraw-excess-reserve invariant, **aggregate disclosure** (N≥2 threshold, multiple incremental reveals, market-state guards), **pluggable oracle adapter** (delegated reporting, unauthorized rejection, owner override).
 
 ## Architecture
 

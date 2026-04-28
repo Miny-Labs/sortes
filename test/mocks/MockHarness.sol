@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.28;
 
 // Force-import contracts we want Foundry to compile so we can `forge create`
 // them for testnet deployment, even though they live under lib/ (the normal

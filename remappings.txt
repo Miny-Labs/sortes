@@ -1,5 +1,5 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
-@skalenetwork/bite-solidity/=lib/confidential-token/node_modules/@skalenetwork/bite-solidity/
+@skalenetwork/bite-solidity/=lib/bite-solidity/contracts/
 @skalenetwork/confidential-token/=lib/confidential-token/contracts/
 forge-std/=lib/forge-std/src/
 ctf/=lib/conditional-tokens-contracts/contracts/

@@ -19,3 +19,6 @@
 [submodule "lib/uma-ctf-adapter"]
 	path = lib/uma-ctf-adapter
 	url = https://github.com/Polymarket/uma-ctf-adapter
+[submodule "lib/bite-solidity"]
+	path = lib/bite-solidity
+	url = https://github.com/skalenetwork/bite-solidity.git

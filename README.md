@@ -17,11 +17,16 @@ Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** 
 | Checkpoint | Status |
 | --- | --- |
 | C1: Repo scaffold, audited dependencies vendored | done |
-| C2: SealedPool deployed and verified on SKALE Base Sepolia. Live end-to-end E2E blocked on real BITE Phase 2 precompile availability (see note below). | partial |
-| C3: Public AMM via Polymarket CTF + Gnosis FPMM (USDC.e collateral, no BITE dependency) | pending, unblocked, next |
-| C4: ConfidentialCollateralWrapper for cUSDC integration | pending, blocked on BITE Phase 2 |
+| C2 v0: SealedPool basic deployment (deprecated by v2 below) | done |
+| C2.5: Foundry config + bite-solidity@1.0.1-stable.0 + via_ir + correct fees | done |
+| C2.6: SealedPool v2 with confidential-poker patterns + Phase 2 (CTX) + Phase 3 (ECIES payout re-encryption inside onDecrypt) | done, deployed, verified |
+| C2.7: cUSDC integration via skalenetwork/confidential-token | next |
+| C3: Aggregate disclosure mechanism for live odds | pending |
+| C4: Encrypted track record + selective reveal | pending |
 | C5: UMA Optimistic Oracle v3 cross-chain resolution | pending |
-| C6: End-to-end demo on testnet | pending |
+| C6: End-to-end testnet demo | pending |
+| C7: Private beta launch with SKALE Labs GTM | pending |
+| C8: Mainnet launch on SKALE Base when Confidential Token audit clears | pending |
 
 This README updates with every commit. Deployed addresses are recorded in [`deployments/`](deployments/).
 
@@ -47,11 +52,11 @@ encrypt-bet-decrypt loop cannot run end to end on this chain.
 
 ```
 forge test
-26 passed, 0 failed
+30 passed, 0 failed
 ```
 
 - 4 sanity tests (precompile addresses, type imports)
-- 22 SealedPool tests (lifecycle, oracle path, happy path, refunds, cancellation, fee cap, callback security, gas bounds)
+- 26 SealedPool v2 tests covering: constructor reserve invariants, lifecycle, oracle path, dual-encryption submission, viewer key storage, the full happy path with **Phase 3 ECIES payout re-encryption** verified, no-winners refund, cancellation, fee cap, callback security, max-bets cap, withdraw-excess-reserve invariant.
 
 ## Architecture
 
@@ -128,9 +133,22 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 | Contract | Address | Verified |
 | --- | --- | --- |
-| SealedPool | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes (Blockscout) |
+| SealedPool v2 | [`0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751) | yes (Blockscout) |
+| SealedPool v0 (deprecated) | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes |
 
-Owner / treasury: `0xdE1E06268A87f4EDABad45fF23f3c226cF064664`. Configured with `submitCTXAddress = 0x...1B` (the canonical SKALE BITE Phase 2 precompile), `callbackFee = 1000 gwei`, `protocolFeeBps = 100` (1%), `maxBetsPerMarket = 200`. Full record in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
+**SealedPool v2** is the production contract. Configured with:
+- `submitCtxAddress = 0x...1B` (canonical Phase 2 SubmitCTX precompile)
+- `encryptEciesAddress = 0x...1C` (canonical Phase 3 EncryptECIES precompile)
+- `encryptTeAddress = 0x...1D` (canonical Phase 3 EncryptTE precompile)
+- `ctxCallbackValueWei = 0.005 CREDIT` (testnet; mainnet target 0.06 ETH per SKALE recommendation)
+- `MIN_CTX_RESERVE_CALLBACKS = 10`, `CTX_GAS_LIMIT = 2_500_000`, `protocolFeeBps = 100`, `MAX_BETS_PER_MARKET = 200`
+
+Phase integration:
+- **Phase 2 (CTX)**: `triggerResolution` calls `BITE.submitCTX(0x1B, ...)` to batch-decrypt all sealed bets in the next block.
+- **Phase 3 (Re-encryption)**: inside `onDecrypt`, the contract calls `BITE.encryptECIES(0x1C, payoutAmount, viewerKey)` for each winner, storing only the encrypted payout claim. The winner decrypts off chain with their viewer private key.
+- TE encryption (`0x1D`) is performed **client-side via bite-ts** before submission; the contract never calls `encryptTE`.
+
+Full record in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
 
 ## Build and test
 

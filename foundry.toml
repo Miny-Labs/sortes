@@ -4,15 +4,17 @@ out = "out"
 libs = ["lib"]
 test = "test"
 script = "script"
-solc_version = "0.8.30"
+solc_version = "0.8.28"
 auto_detect_solc = false
 optimizer = true
 optimizer_runs = 200
-via_ir = false
+via_ir = true
+# SKALE Base mainnet/sepolia are Base-derived and support cancun (since Mar 2024).
+# The older istanbul-only requirement applies to the legacy BITE V2 Sandbox chain only.
 evm_version = "cancun"
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "@skalenetwork/bite-solidity/=lib/confidential-token/node_modules/@skalenetwork/bite-solidity/",
+    "@skalenetwork/bite-solidity/=lib/bite-solidity/contracts/",
     "@skalenetwork/confidential-token/=lib/confidential-token/contracts/",
     "forge-std/=lib/forge-std/src/",
     "ctf/=lib/conditional-tokens-contracts/contracts/",

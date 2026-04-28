@@ -6,6 +6,7 @@ import { ArrowUpRight, Lock, Eye, ShieldCheck } from "@phosphor-icons/react";
 
 import { MarketCard } from "../components/MarketCard";
 import { MarketDrawer } from "../components/MarketDrawer";
+import { QuickStart } from "../components/QuickStart";
 import { ADDRESSES, EXPLORER_URL } from "../lib/contracts";
 import { MarketStatus } from "../lib/contracts";
 import { useAllMarkets, useMarketCount } from "../lib/markets";
@@ -43,13 +44,18 @@ export default function HomePage() {
 
   return (
     <>
+      <QuickStart />
+
       <Hero totals={totals} />
 
       <div className="mx-auto max-w-[1400px] px-6">
         <div className="divider" />
       </div>
 
-      <section className="relative mx-auto max-w-[1400px] px-6 pb-32 pt-20 lg:pt-24">
+      <section
+        data-section="markets"
+        className="relative mx-auto max-w-[1400px] px-6 pb-32 pt-20 lg:pt-24"
+      >
         <div className="mb-12 flex flex-wrap items-end justify-between gap-y-4">
           <div>
             <div className="label-eyebrow">Open book</div>

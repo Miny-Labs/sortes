@@ -34,7 +34,9 @@ export function BetForm({ market, onSubmitted }: Props) {
   const [viewerKey, setViewerKey] = useState<{ x: `0x${string}`; y: `0x${string}` } | null>(null);
   const [keyShort, setKeyShort] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ tx: string; mode: Mode } | null>(null);
+  const [success, setSuccess] = useState<{ tx: string; mode: Mode; isFirst: boolean } | null>(
+    null,
+  );
   const { claim, status: faucetStatus } = useFaucet();
 
   // Public-side reads.
@@ -165,22 +167,29 @@ export function BetForm({ market, onSubmitted }: Props) {
     }
     try {
       const vk = viewerKey ?? (await waitForKey());
+      const isFirst =
+        typeof window !== "undefined" &&
+        localStorage.getItem("sortes:onboard:firstBetDone") !== "1";
+      let tx: `0x${string}`;
       if (mode === "sealed") {
-        const tx = await writeContractAsync({
+        tx = await writeContractAsync({
           address: ADDRESSES.SealedPool,
           abi: SEALED_POOL_ABI,
           functionName: "submitSealedBetWithEncryption",
           args: [market.id, outcome, vk, stakeWei],
         });
-        setSuccess({ tx, mode: "sealed" });
       } else {
-        const tx = await writeContractAsync({
+        tx = await writeContractAsync({
           address: ADDRESSES.SealedPool,
           abi: SEALED_POOL_ABI,
           functionName: "submitConfidentialBet",
           args: [market.id, outcome, stakeWei, vk],
         });
-        setSuccess({ tx, mode: "confidential" });
+      }
+      setSuccess({ tx, mode, isFirst });
+      if (isFirst && typeof window !== "undefined") {
+        localStorage.setItem("sortes:onboard:firstBetDone", "1");
+        window.dispatchEvent(new CustomEvent("sortes:firstBet"));
       }
       onSubmitted?.();
       await refetchBalance();
@@ -400,7 +409,14 @@ export function BetForm({ market, onSubmitted }: Props) {
         </div>
       </div>
 
-      {success && (
+      {success && success.isFirst && (
+        <FirstBetPanel
+          tx={success.tx}
+          mode={success.mode}
+          onDismiss={() => setSuccess(null)}
+        />
+      )}
+      {success && !success.isFirst && (
         <div className="rounded-xl border border-signal/20 bg-signal/[0.04] p-4 text-[12px]">
           <div className="text-signal">
             {success.mode === "confidential" ? "Confidential bet sealed." : "Sealed bet placed."}
@@ -555,6 +571,52 @@ function MagneticCTA({
     >
       {children}
     </motion.button>
+  );
+}
+
+function FirstBetPanel({
+  tx,
+  mode,
+  onDismiss,
+}: {
+  tx: string;
+  mode: Mode;
+  onDismiss: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="rounded-2xl border border-signal/20 bg-signal/[0.04] p-5"
+    >
+      <div className="label-eyebrow flex items-center gap-1.5 text-signal">
+        <Lock weight="fill" className="h-3 w-3" />
+        first sealed bet
+      </div>
+      <div className="mt-2 font-display text-[20px] leading-tight tracking-tight text-ink-100">
+        Your direction is locked on chain.
+      </div>
+      <p className="mt-3 max-w-[44ch] text-[12px] leading-relaxed text-ink-400">
+        {mode === "confidential"
+          ? "Stake amount and direction both encrypted via Phase 3 against cnfUSDC.e collateral."
+          : "Encrypted via SKALE BITE Phase 3. The aggregate odds bar for this market reveals your stake once the next 2-bet batch settles. Come back when the market resolves to redeem."}
+      </p>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <a
+          href={`${EXPLORER_URL}/tx/${tx}`}
+          target="_blank"
+          rel="noreferrer"
+          className="num inline-flex items-center gap-1 text-[11px] text-ink-300 underline-offset-2 hover:text-ink-100 hover:underline"
+        >
+          {tx.slice(0, 12)}…{tx.slice(-6)}
+          <ArrowUpRight className="h-3 w-3" />
+        </a>
+        <button onClick={onDismiss} className="btn-ghost text-xs">
+          Got it
+        </button>
+      </div>
+    </motion.div>
   );
 }
 

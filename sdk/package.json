@@ -1,0 +1,22 @@
+{
+  "name": "@sortes/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Sortes — privacy-first prediction markets on SKALE",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": ["*.ts"],
+  "dependencies": {
+    "@noble/ciphers": "^1.0.0",
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0",
+    "@skalenetwork/bite": "^0.8.1",
+    "ethers": "^6.13.0"
+  },
+  "peerDependencies": {
+    "ethers": "^6"
+  }
+}

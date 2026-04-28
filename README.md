@@ -133,11 +133,13 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 #### SKALE Base Sepolia testnet — production deployment
 
-| Contract | Address | Verified | Notes |
+| Contract | Address | Verified | Purpose |
 | --- | --- | --- | --- |
-| **SealedPool v3** | [`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589) | yes | Unified-TVL design with public + confidential bet paths sharing one pot. |
-| SealedPool v2 (E2E proof) | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes | Live E2E demo deployment (public-only). |
-| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes | BITE precompile probes. |
+| **SealedPool v3 (unified-TVL)** | [`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589) | yes | Production prediction-market contract. Public + confidential bet paths sharing one pot. |
+| **ConfidentialWrapper (cUSDC)** | [`0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb) | yes | `cnfUSDC.e` — encrypted-balance wrapper for confidential bets. |
+| AccessManager (cUSDC permissions) | [`0x0556EE147C56627565Bf681eDeC27aE92275A905`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x0556EE147C56627565Bf681eDeC27aE92275A905) | yes | OZ access control for cUSDC. |
+| SealedPool v2 (E2E proof) | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes | Earlier deployment used for live end-to-end proof. |
+| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes | Direct BITE precompile probe contract. |
 
 Earlier deployments (v0, v2-cancun, v2-istanbul without inline encryption) are recorded as deprecated in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
 

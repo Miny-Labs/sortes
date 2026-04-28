@@ -25,82 +25,76 @@
       "encryptTEPrecompile": "0x000000000000000000000000000000000000001D"
     },
     "diagnosticFindings": [
-      {
-        "finding": "evm_version=cancun produces bytecode that cannot invoke BITE precompiles. Use evm_version=istanbul per skill recommendation.",
-        "verifiedBy": "Failed tx 0x6abf4c4282bbb2e700bca921e1a3d3feddeb5d415987c73897fec1b25f10ac4c (cancun OOG) vs success tx 0x5178992c8e0351fa977a2766fe2ebb9002abbd070b50886b9aff961a57e41325 (istanbul success)."
-      },
-      {
-        "finding": "BITE.encryptECIES validates the public key is on the secp256k1 curve. Arbitrary (x, y) bytes32 pairs cause OOG.",
-        "verifiedBy": "Failed tx 0x42fb708aa7d6fc30517a370ee3f63505a513c2c3a5db57441888d4d07849ef6f (invalid key) vs success tx 0x30c93529ec9b3c2a040091972490ad921cd257088722a1f4bfdf37191d6d5f11 (secp256k1 generator)."
-      },
-      {
-        "finding": "Phase 3 ciphertext is bound to the encrypting contract's address as AAD. The CTX submitter must be the same address that produced the ciphertext.",
-        "verifiedBy": "Failed tx (CTXAbiToRlpConversionFailed when ciphertext encrypted by PrecompileSmoke 0xBfa3d8 was submitted via SealedPool 0x2c5442) vs success when SealedPool encrypts inline. Resolution success: 0x3062e7d53d094d36b7e97e68e17c4bb779966d3d7fd3d8091c1e6992002e51dc."
-      },
-      {
-        "finding": "SubmitCTX precompile requires equal-length encryptedArguments and plaintextArguments arrays.",
-        "verifiedBy": "Mirrors confidential-poker showdown pattern. SealedPool now packs (marketId, betIndex) per encrypted arg."
-      }
+      "evm_version=cancun produces bytecode that cannot invoke BITE precompiles. Use evm_version=istanbul per skill recommendation.",
+      "BITE.encryptECIES validates the public key is on the secp256k1 curve. Arbitrary (x, y) bytes32 pairs cause OOG.",
+      "Phase 3 ciphertext is bound to the encrypting contract's address as AAD. The CTX submitter must be the same address that produced the ciphertext.",
+      "SubmitCTX precompile requires equal-length encryptedArguments and plaintextArguments arrays.",
+      "OpenZeppelin v5.5+ Arrays.sol uses mcopy (cancun-only). Pin OZ to v5.4.0 to compile alongside BITE under evm_version=istanbul."
     ]
   },
   "sortes": {
     "SealedPool": {
-      "version": "v2-istanbul-inline",
-      "address": "0x05aD32257EE764721D9f97BDD1520ed1146701E3",
-      "deploymentTx": "0x63b16cf7f71bcd58105e061af36e86fb9f260cedaa1b8f784e7cb285de432087",
+      "version": "v3-unifiedTVL",
+      "address": "0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589",
+      "deploymentTx": "0xd519f5f04b557c2cbb040a8fe949115575e8631d4413097981019dbeb60a7927",
       "owner": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "treasury": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "verified": true,
-      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05ad32257ee764721d9f97bdd1520ed1146701e3",
+      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589",
       "evmVersion": "istanbul",
       "solcVersion": "0.8.27",
       "biteSolidityVersion": "1.0.1-stable.0",
-      "phaseIntegration": {
-        "phase2_ctx": "BITE.submitCTX(0x1B) inside triggerResolution, encArgs/ptxArgs equal length",
-        "phase3_te_inline": "BITE.encryptTE(0x1D) inside submitSealedBetWithEncryption (msg.sender = pool, AAD = pool address)",
-        "phase3_ecies_inline": "BITE.encryptECIES(0x1C) inside submitSealedBetWithEncryption with bettor's viewer key",
-        "phase3_ecies_payout": "BITE.encryptECIES(0x1C) inside onDecrypt re-encrypts each winner's payout amount under their viewer key"
-      },
+      "openZeppelinVersion": "5.4.0",
       "config": {
-        "submitCtxAddress": "0x000000000000000000000000000000000000001B",
-        "encryptEciesAddress": "0x000000000000000000000000000000000000001C",
-        "encryptTeAddress": "0x000000000000000000000000000000000000001D",
-        "ctxCallbackValueWei": "500000000000000",
-        "ctxCallbackValueFormatted": "0.0005 CREDIT (testnet sizing; mainnet target 0.06 ETH/SFUEL)",
+        "ctxCallbackValueWei": "100000000000000",
+        "ctxCallbackValueFormatted": "0.0001 CREDIT (testnet sizing; mainnet target 0.06 ETH/SFUEL)",
         "minCtxReserveCallbacks": 10,
+        "minAggregateBatch": 2,
         "ctxGasLimit": 2500000,
         "protocolFeeBps": 100,
         "maxBetsPerMarket": 200
-      },
-      "liveE2EProof": {
-        "description": "Full lifecycle proven on chain with real BITE precompiles",
-        "createMarket": "0x9dc47cae2f36f4033a3203bf510bd6c59718d5aaf675e0be100b6d3f43625aef",
-        "submitSealedBet": "0x4776627e685a297a82a5ece27d81ca475a7d8d132fda8804e849313c1f972f73",
-        "setOracleOutcome": "0x19b88f9a825ad08f0244fd268e7ae2918d6cc9a6292c819af81f4b7e0c4ff4a1",
-        "triggerResolution": "0x3062e7d53d094d36b7e97e68e17c4bb779966d3d7fd3d8091c1e6992002e51dc",
-        "redeem": "0x9a21ee61ba468922f64db8caf81568562afa19378fdf7abd4196d6715ccdb95e",
-        "result": "Bet 1 USDC.e on outcome 1, oracle resolved 1, received 0.99 USDC.e (1.0 - 1% protocol fee). Phase 3 ECIES re-encrypted payout claim stored at encryptedPayoutOf(1, 0)."
       }
+    },
+    "ConfidentialWrapper_cUSDC": {
+      "address": "0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb",
+      "deploymentTx": "0xc2c914c6627d5d19693f05d3ab6eee26d424056c8f668f343ecfc67cf25f3f99",
+      "name": "Confidential Bridged USDC (SKALE Bridge)",
+      "symbol": "cnfUSDC.e",
+      "decimals": 6,
+      "underlying": "0x2e08028E3C4c2356572E096d8EF835cD5C6030bD",
+      "version": "v1",
+      "accessManager": "0x0556EE147C56627565Bf681eDeC27aE92275A905",
+      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb",
+      "purpose": "Encrypted-balance ERC20 wrapping bridged USDC.e. Used as confidential collateral for SealedPool's confidential bet path. Forked from skalenetwork/confidential-token@develop, deployed against the SKALE-side bridged USDC.e."
+    },
+    "AccessManager_for_cUSDC": {
+      "address": "0x0556EE147C56627565Bf681eDeC27aE92275A905",
+      "deploymentTx": "0x657a71033752d9d0f4c0fe222be20c08fab77a0e0b7835feb0b29b8bfa557213",
+      "purpose": "OpenZeppelin AccessManager controlling cUSDC permissions."
     }
   },
   "deprecated_deployments": {
-    "v2_inline_predecessor": {
+    "v2-istanbul-inline_E2E_proof": {
+      "address": "0x05aD32257EE764721D9f97BDD1520ed1146701E3",
+      "reason": "First fully-working SealedPool with inline Phase 3 encryption + ECIES re-encryption + live E2E proof. Replaced by v3 with unified-TVL design (adds confidential bet path)."
+    },
+    "v2-istanbul-predecessor": {
       "address": "0x2c5442B521A3ebd1a72234E92bf73dB4769af7d7",
-      "reason": "First istanbul deployment, before adding submitSealedBetWithEncryption inline-encryption variant. Replaced by 0x05aD32... above."
+      "reason": "Pre-inline-encryption deployment."
     },
-    "v2_cancun": {
+    "v2-cancun": {
       "address": "0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751",
-      "reason": "Compiled with evm_version=cancun, bytecode incompatible with BITE precompiles."
+      "reason": "Compiled with cancun, incompatible with BITE precompiles."
     },
-    "v0_cancun": {
+    "v0-cancun": {
       "address": "0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e",
-      "reason": "Initial scaffold deploy with wrong callback fee."
+      "reason": "Initial scaffold."
     }
   },
   "diagnosticTooling": {
     "PrecompileSmoke": {
       "address": "0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0",
-      "purpose": "Diagnostic wrapper around BITE.encryptTE / BITE.encryptECIES for direct precompile probes."
+      "purpose": "Wrapper around BITE.encryptTE / BITE.encryptECIES for direct precompile probes."
     }
   }
 }

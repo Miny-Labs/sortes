@@ -435,6 +435,64 @@ contract SealedPoolTest is Test {
         assertEq(pool.MAX_BETS_PER_MARKET(), 200);
     }
 
+    // ─── C3: Aggregate disclosure ──────────────────────────────────────
+
+    function test_AggregateRevealRequiresMinBatch() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        _betDual(alice, marketId, 1, 100 * ONE_USDC);
+        // Only 1 unaggregated bet, MIN_AGGREGATE_BATCH = 2 -> revert.
+        vm.expectRevert(
+            abi.encodeWithSelector(SealedPool.NotEnoughForAggregate.selector, 1, 2)
+        );
+        pool.triggerAggregateReveal(marketId);
+    }
+
+    function test_AggregateRevealUpdatesPerOutcomeTotals() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        _betDual(alice, marketId, 1, 200 * ONE_USDC);
+        _betDual(bob,   marketId, 1, 300 * ONE_USDC);
+        _betDual(carol, marketId, 0, 500 * ONE_USDC);
+
+        pool.triggerAggregateReveal(marketId);
+        bite.sendCallback();
+
+        assertEq(pool.aggregatePerOutcome(marketId, 0), 500 * ONE_USDC);
+        assertEq(pool.aggregatePerOutcome(marketId, 1), 500 * ONE_USDC);
+        assertEq(pool.aggregatedUpToIndex(marketId), 3);
+    }
+
+    function test_AggregateRevealCanRunMultipleTimes() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        _betDual(alice, marketId, 1, 100 * ONE_USDC);
+        _betDual(bob,   marketId, 0, 200 * ONE_USDC);
+
+        pool.triggerAggregateReveal(marketId);
+        bite.sendCallback();
+        assertEq(pool.aggregatedUpToIndex(marketId), 2);
+
+        // Add more bets, reveal again incrementally.
+        _betDual(carol, marketId, 1, 50 * ONE_USDC);
+        _betDual(dave,  marketId, 1, 150 * ONE_USDC);
+
+        pool.triggerAggregateReveal(marketId);
+        bite.sendCallback();
+
+        assertEq(pool.aggregatePerOutcome(marketId, 0), 200 * ONE_USDC);
+        assertEq(pool.aggregatePerOutcome(marketId, 1), 300 * ONE_USDC);
+        assertEq(pool.aggregatedUpToIndex(marketId), 4);
+    }
+
+    function test_AggregateRevealRejectsAfterMarketCloses() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        _betDual(alice, marketId, 1, 100 * ONE_USDC);
+        _betDual(bob,   marketId, 0, 200 * ONE_USDC);
+        skip(2 days);
+        vm.prank(owner);
+        pool.setOracleOutcome(marketId, 1);
+        vm.expectRevert(SealedPool.MarketNotOpen.selector);
+        pool.triggerAggregateReveal(marketId);
+    }
+
     function test_WithdrawExcessReserveRespectsMinimum() public {
         // Initial reserve is RESERVE_AMOUNT (= 20x). Min is 10x. So 10x is
         // freely withdrawable. Withdraw it, then verify we cannot dip into

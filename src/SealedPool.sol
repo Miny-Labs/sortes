@@ -47,7 +47,7 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
 
     // ─── Types ─────────────────────────────────────────────────────────
 
-    enum CallbackKind { None, Resolution }
+    enum CallbackKind { None, Resolution, AggregateReveal }
 
     struct Bet {
         address bettor;
@@ -92,6 +92,12 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
     /// @notice Hard cap on bets per market. Limits onDecrypt loop gas.
     uint256 public constant MAX_BETS_PER_MARKET = 200;
 
+    /// @notice Minimum number of unaggregated bets required to trigger an
+    ///         aggregate reveal. Anti-deanonymization invariant: with N>=2
+    ///         per batch, no single bet's outcome can be inferred from the
+    ///         delta between consecutive aggregate snapshots.
+    uint256 public constant MIN_AGGREGATE_BATCH = 2;
+
     // ─── Phase 3 precompile addresses (immutable, defaults from BITE lib) ──
 
     address public immutable encryptEciesAddress;
@@ -118,6 +124,18 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
 
     mapping(address callbackSender => uint256 marketId) private _pendingMarket;
     mapping(address callbackSender => CallbackKind kind) private _pendingKind;
+
+    /// @notice Public per-outcome aggregate stake totals, refreshed by
+    ///         triggerAggregateReveal. Visible to everyone for live odds UX.
+    /// @dev    Privacy preserved by N>=MIN_AGGREGATE_BATCH invariant: each
+    ///         reveal batches at least 2 new bets, so deltas cannot isolate
+    ///         a single bet's outcome.
+    mapping(uint256 marketId => mapping(uint256 outcome => uint256 stake))
+        public aggregatePerOutcome;
+
+    /// @notice First bet index that has NOT yet been folded into the public
+    ///         aggregate. triggerAggregateReveal advances this cursor.
+    mapping(uint256 marketId => uint256) public aggregatedUpToIndex;
 
     // ─── Errors ───────────────────────────────────────────────────────
 
@@ -148,6 +166,26 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
     error OracleAlreadyReported();
     error InsufficientCtxReserve(uint256 required, uint256 available);
     error InvalidViewerKey();
+    error NotEnoughForAggregate(uint256 unaggregated, uint256 minimum);
+
+    // ─── Events not on the interface ───────────────────────────────
+
+    /// @notice Emitted when an aggregate reveal CTX is triggered.
+    event AggregateRevealTriggered(
+        uint256 indexed marketId,
+        address indexed callbackSender,
+        uint256 fromBetIndex,
+        uint256 toBetIndex
+    );
+
+    /// @notice Emitted after the BITE callback updates a market's per-outcome
+    ///         aggregate. Cumulative public total per outcome.
+    event AggregateUpdated(
+        uint256 indexed marketId,
+        uint256 indexed outcome,
+        uint256 newAggregateStake,
+        uint256 totalAggregatedBets
+    );
 
     // ─── Constructor ──────────────────────────────────────────────────
 
@@ -438,9 +476,56 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
 
         if (kind == CallbackKind.Resolution) {
             _settleResolution(marketId, decryptedArguments, plaintextArguments);
+        } else if (kind == CallbackKind.AggregateReveal) {
+            _settleAggregate(marketId, decryptedArguments, plaintextArguments);
         } else {
             revert UnknownCallback();
         }
+    }
+
+    /// @notice Trigger an aggregate reveal for an open market. Decrypts every
+    ///         bet submitted since the last reveal in one batch CTX, sums per
+    ///         outcome, and adds to the publicly visible aggregate. Anyone
+    ///         can call. Anti-deanonymization invariant: at least
+    ///         MIN_AGGREGATE_BATCH new bets must be present.
+    /// @dev    Pays the BITE callback fee from the contract's CTX reserve.
+    function triggerAggregateReveal(uint256 marketId) external nonReentrant {
+        Market storage m = _market(marketId);
+        if (m.status != MarketStatus.Open) revert MarketNotOpen();
+
+        uint256 from = aggregatedUpToIndex[marketId];
+        uint256 to = m.bets.length;
+        uint256 unagg = to - from;
+        if (unagg < MIN_AGGREGATE_BATCH) {
+            revert NotEnoughForAggregate(unagg, MIN_AGGREGATE_BATCH);
+        }
+
+        uint256 reserveRequired = ctxCallbackValueWei * MIN_CTX_RESERVE_CALLBACKS;
+        uint256 reserveAfter = address(this).balance - ctxCallbackValueWei;
+        if (reserveAfter < reserveRequired) {
+            revert InsufficientCtxReserve(
+                reserveRequired + ctxCallbackValueWei, address(this).balance
+            );
+        }
+
+        bytes[] memory encArgs = new bytes[](unagg);
+        bytes[] memory ptxArgs = new bytes[](unagg);
+        for (uint256 i = 0; i < unagg; ++i) {
+            uint256 betIdx = from + i;
+            encArgs[i] = m.bets[betIdx].teEncryptedOutcome;
+            ptxArgs[i] = abi.encode(marketId, m.bets[betIdx].stake);
+        }
+
+        address payable callback = BITE.submitCTX(
+            submitCtxAddress, _aggregateGasLimit(unagg), encArgs, ptxArgs
+        );
+
+        _pendingMarket[callback] = marketId;
+        _pendingKind[callback] = CallbackKind.AggregateReveal;
+
+        emit AggregateRevealTriggered(marketId, callback, from, to);
+
+        callback.sendValue(ctxCallbackValueWei);
     }
 
     /// @inheritdoc ISortesSealedPool
@@ -708,5 +793,50 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         uint256 estimated = baseline + numBets * perBet;
         if (estimated > CTX_GAS_LIMIT) return CTX_GAS_LIMIT;
         return estimated;
+    }
+
+    /// @notice Per-call gas budget for the aggregate reveal callback.
+    /// @dev    Cheaper than resolution: just plaintext sums, no ECIES.
+    function _aggregateGasLimit(uint256 numBets) private pure returns (uint256) {
+        uint256 perBet = 30_000;
+        uint256 baseline = 200_000;
+        uint256 estimated = baseline + numBets * perBet;
+        if (estimated > CTX_GAS_LIMIT) return CTX_GAS_LIMIT;
+        return estimated;
+    }
+
+    /// @notice BITE callback handler for aggregate reveal CTXs. Walks the
+    ///         decrypted outcomes, adds stakes to the per-outcome public
+    ///         totals, advances the aggregatedUpToIndex cursor.
+    function _settleAggregate(
+        uint256 marketId,
+        bytes[] calldata decryptedArguments,
+        bytes[] calldata plaintextArguments
+    ) private {
+        if (plaintextArguments.length != decryptedArguments.length) {
+            revert CallbackArgsLengthMismatch();
+        }
+        uint256 numItems = decryptedArguments.length;
+
+        for (uint256 i = 0; i < numItems; ++i) {
+            bytes calldata raw = decryptedArguments[i];
+            if (raw.length != 32) revert DecryptedValueWrongLength();
+            uint256 outcome = abi.decode(raw, (uint256));
+
+            (uint256 decodedMarketId, uint256 stake) = abi.decode(
+                plaintextArguments[i], (uint256, uint256)
+            );
+            if (decodedMarketId != marketId) revert UnknownCallback();
+
+            aggregatePerOutcome[marketId][outcome] += stake;
+            emit AggregateUpdated(
+                marketId,
+                outcome,
+                aggregatePerOutcome[marketId][outcome],
+                aggregatedUpToIndex[marketId] + i + 1
+            );
+        }
+
+        aggregatedUpToIndex[marketId] += numItems;
     }
 }

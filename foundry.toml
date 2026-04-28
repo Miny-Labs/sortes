@@ -17,18 +17,11 @@ remappings = [
     "@skalenetwork/bite-solidity/=lib/bite-solidity/contracts/",
     "@skalenetwork/confidential-token/=lib/confidential-token/contracts/",
     "forge-std/=lib/forge-std/src/",
-    "ctf/=lib/conditional-tokens-contracts/contracts/",
-    "ctf-exchange/=lib/ctf-exchange/src/",
-    "uma-ctf-adapter/=lib/uma-ctf-adapter/src/",
 ]
 fs_permissions = [{ access = "read-write", path = "./" }]
 
 [profile.default.fuzz]
 runs = 1000
-
-# We avoid compiling vendored CTF (0.5.x) and CTFExchange (0.8.15) inside this Foundry project.
-# CTF is deployed once from its own upstream toolchain (Hardhat, solc 0.5.17) and we reference its address.
-# Our own src/ stays at 0.8.24, talks to CTF via IConditionalTokens interface.
 
 [rpc_endpoints]
 skale_base_sepolia = "${SKALE_BASE_SEPOLIA_RPC}"

@@ -150,14 +150,15 @@ sortes/
 
 ## Vendored audited dependencies
 
-Sortes does not invent crypto and does not modify audited contracts. The novel surface is small: `SealedPool.sol`, `UmaOracleSink.sol`, and a thin `ConfidentialCollateralWrapper` extension. Everything else is vendored:
+Sortes does not invent crypto and does not modify audited contracts. The novel surface is small (~1,320 lines): `SealedPool.sol` and `UmaOracleSink.sol`. Everything else is vendored:
 
-| Component | Source | Audit |
-| --- | --- | --- |
-| BITE Solidity | [`skalenetwork/bite-solidity`](https://github.com/skalenetwork/bite-solidity) `1.0.1-stable.0` | SKALE-internal |
-| Confidential Token | [`skalenetwork/confidential-token`](https://github.com/skalenetwork/confidential-token) | SKALE-internal |
-| OpenZeppelin Contracts | [`OpenZeppelin/openzeppelin-contracts`](https://github.com/OpenZeppelin/openzeppelin-contracts) v5.4.0 | OpenZeppelin |
-| UMA CTF Adapter (planned) | [`Polymarket/uma-ctf-adapter`](https://github.com/Polymarket/uma-ctf-adapter) | OpenZeppelin |
+| Component | Source | Pinned | Audit |
+| --- | --- | --- | --- |
+| OpenZeppelin Contracts | [`OpenZeppelin/openzeppelin-contracts`](https://github.com/OpenZeppelin/openzeppelin-contracts) | v5.4.0 | OpenZeppelin |
+| BITE Solidity (SKALE) | [`skalenetwork/bite-solidity`](https://github.com/skalenetwork/bite-solidity) | `1.0.1-stable.0` | SKALE-internal |
+| Confidential Token (SKALE) | [`skalenetwork/confidential-token`](https://github.com/skalenetwork/confidential-token) | `0.0.1-develop.29` | SKALE-internal |
+
+That's the full third-party surface that ends up in the build. Sortes uses five OpenZeppelin primitives (`Ownable`, `ReentrancyGuard`, `IERC20`, `SafeERC20`, `Address`), the BITE precompile wrappers + `IBiteSupplicant` callback interface, and talks to a deployed-unmodified `ConfidentialWrapper` via interface for the private bet path. The bet pool, settlement math, cross-pot solvency, callback routing, oracle adapter, viewer-key handling, and fee sweep are all in `SealedPool.sol` — fully novel and not externally audited (covered by 39 forge tests + a live end-to-end run on chain).
 
 ## Frontend
 
@@ -266,9 +267,7 @@ cd frontend && vercel deploy
 Sortes stands on:
 
 - [SKALE Labs](https://skale.space/) for BITE Protocol and the Confidential Token primitive.
-- [Polymarket](https://polymarket.com/) for productionizing the CTF Exchange and UMA adapter.
-- [Gnosis](https://gnosis.io/) for the Conditional Tokens Framework.
-- [UMA](https://uma.xyz/) for the Optimistic Oracle.
+- [UMA](https://uma.xyz/) for the Optimistic Oracle (target for cross-chain resolution).
 - [OpenZeppelin](https://www.openzeppelin.com/) for the Solidity primitives most of the ecosystem stands on.
 
 ## License

@@ -41,7 +41,7 @@ export default function HomePage() {
 
       <section
         data-section="markets"
-        className="relative mx-auto max-w-[1400px] px-6 pb-32 pt-20 lg:pt-24"
+        className="relative mx-auto max-w-[1400px] px-6 pb-20 pt-20 lg:pb-24 lg:pt-24"
       >
         <div className="mb-12 flex flex-wrap items-end justify-between gap-y-4">
           <div>
@@ -64,6 +64,8 @@ export default function HomePage() {
         )}
       </section>
 
+      <HowItWorks />
+
       <Footer />
 
       <MarketDrawer marketId={openId} onClose={() => setOpenId(null)} />
@@ -71,26 +73,97 @@ export default function HomePage() {
   );
 }
 
+const HERO_VIDEO =
+  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260423_161253_c72b1869-400f-45ed-ac0c-52f68c2ed5bd.mp4";
+const PRIVACY_VIDEO =
+  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260423_183428_ab5e672a-f608-4dcb-b319-f3e040f02e2d.mp4";
+
 function Hero() {
   return (
-    <section className="relative mx-auto max-w-[1400px] px-6 pb-12 pt-16 lg:pb-20 lg:pt-24">
-      <motion.h1
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="font-display font-medium leading-[0.85] tracking-tightest text-ink-100"
-        style={{ fontSize: "clamp(5rem, 18vw, 16rem)" }}
+    <section className="relative isolate overflow-hidden">
+      {/* Ambient video, heavily darkened so the wordmark stays dominant. */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.18]"
       >
-        sortes
-      </motion.h1>
+        <source src={HERO_VIDEO} type="video/mp4" />
+      </video>
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_30%,transparent_0%,oklch(0.105_0.003_160/0.55)_55%,oklch(0.105_0.003_160)_100%)]"
+      />
 
+      <div className="relative mx-auto max-w-[1400px] px-6 pb-12 pt-16 lg:pb-20 lg:pt-24">
+        <motion.h1
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="font-display font-medium leading-[0.85] tracking-tightest text-ink-100"
+          style={{ fontSize: "clamp(5rem, 18vw, 16rem)" }}
+        >
+          sortes
+        </motion.h1>
+
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-10 lg:mt-14"
+        >
+          <QuickStart />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  return (
+    <section className="relative mx-auto max-w-[1400px] px-6 pb-24">
       <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-        className="mt-10 lg:mt-14"
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        className="relative isolate overflow-hidden rounded-[28px] border border-white/[0.06]"
       >
-        <QuickStart />
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-60"
+        >
+          <source src={PRIVACY_VIDEO} type="video/mp4" />
+        </video>
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-r from-ink-950 via-ink-950/60 to-ink-950/20"
+        />
+
+        <div className="relative grid gap-8 px-8 py-12 md:grid-cols-[1.1fr_1fr] md:gap-12 md:px-12 md:py-16 lg:px-16 lg:py-20">
+          <div>
+            <div className="label-eyebrow">how it works</div>
+            <h3
+              className="mt-3 max-w-[16ch] text-balance font-display font-medium leading-[0.95] tracking-tightest text-ink-100"
+              style={{ fontSize: "clamp(1.75rem, 3.6vw, 3.25rem)" }}
+            >
+              Bet without telling anyone which side you took.
+            </h3>
+          </div>
+          <div className="self-end">
+            <p className="max-w-[40ch] text-[14px] leading-relaxed text-ink-300 md:text-[15px]">
+              Your pick stays encrypted on chain. Odds only update once at least
+              two new bets land — so a single trade never reveals you. Stake and
+              choice are unsealed only at settlement.
+            </p>
+          </div>
+        </div>
       </motion.div>
     </section>
   );

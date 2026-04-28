@@ -1,5 +1,5 @@
 import type { Abi } from "viem";
-import SealedPoolAbi from "../../abi/SealedPool.json";
+import SealedPoolAbi from "../abi/SealedPool.json";
 
 export const ADDRESSES = {
   SealedPool: "0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d" as `0x${string}`,

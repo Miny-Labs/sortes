@@ -17,14 +17,15 @@ Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** 
 | Checkpoint | Status |
 | --- | --- |
 | C1: Repo scaffold, audited dependencies vendored | done |
-| C2 v0: SealedPool basic deployment (deprecated by v2 below) | done |
-| C2.5: Foundry config + bite-solidity@1.0.1-stable.0 + via_ir + correct fees | done |
-| C2.6: SealedPool v2 with confidential-poker patterns + Phase 2 (CTX) + Phase 3 (ECIES payout re-encryption inside onDecrypt) | done, deployed, verified |
-| C2.7: cUSDC integration via skalenetwork/confidential-token | next |
-| C3: Aggregate disclosure mechanism for live odds | pending |
+| C2: SealedPool with Phase 2 + Phase 3 deployed and source-verified | done |
+| C2.5: Skill-aligned foundry config (istanbul + solc 0.8.27 + bite-solidity 1.0.1-stable.0) | done |
+| C2.6: confidential-poker pattern refactor (dual encryption + CTX reserve + callback routing) | done |
+| C2.7: Inline Phase 3 encryption inside SealedPool (AAD-aligned with CTX submitter) | done |
+| C2.8: **Live end-to-end E2E on chain — sealed bet → resolution → encrypted payout → redeem** | done |
+| C3: Aggregate disclosure for live odds | pending |
 | C4: Encrypted track record + selective reveal | pending |
 | C5: UMA Optimistic Oracle v3 cross-chain resolution | pending |
-| C6: End-to-end testnet demo | pending |
+| C6: End-to-end demo script | done (`scripts/e2e-demo.sh`) |
 | C7: Private beta launch with SKALE Labs GTM | pending |
 | C8: Mainnet launch on SKALE Base when Confidential Token audit clears | pending |
 
@@ -126,14 +127,26 @@ Sortes does not invent crypto and does not modify audited contracts. The novel s
 
 ### Sortes deployments
 
-#### SKALE Base Sepolia testnet
+#### SKALE Base Sepolia testnet — production deployment
 
-| Contract | Address | Verified | Notes |
-| --- | --- | --- | --- |
-| **SealedPool v2 (istanbul)** | [`0xa287C8579D04c480cCCCa02cf240F00aFb16F44E`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xa287C8579D04c480cCCCa02cf240F00aFb16F44E) | yes | Production. Compiled per skill recommendation: evm_version=istanbul, solc 0.8.27. |
-| SealedPool v2 (cancun, deprecated) | [`0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xe48867fdBb61A579b01ae6F7F4DdA6bC87Fba751) | yes | Cancun bytecode is incompatible with BITE precompiles. Replaced. |
-| SealedPool v0 (deprecated) | [`0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x661329cCAAa3febb3404Bf0a2D98547E6A836b6e) | yes | Initial scaffold with wrong callback fee. Replaced. |
-| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | no | Probes 0x1C and 0x1D via the BITE library helper. Used to verify Phase 3 precompiles are live. |
+| Contract | Address | Verified |
+| --- | --- | --- |
+| **SealedPool (production)** | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes |
+| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes |
+
+Earlier deployments (v0, v2-cancun, v2-istanbul without inline encryption) are recorded as deprecated in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
+
+#### Live end-to-end proof on chain
+
+A full lifecycle ran on SKALE Base Sepolia using real BITE Phase 2 + Phase 3 precompiles, no mocks. Bet 1 USDC.e, oracle resolved correctly, payout 0.99 USDC.e returned (1.0 minus 1% protocol fee).
+
+| Step | Tx |
+| --- | --- |
+| Create market | [`0x9dc47cae...3625aef`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x9dc47cae2f36f4033a3203bf510bd6c59718d5aaf675e0be100b6d3f43625aef) |
+| Submit sealed bet (inline Phase 3 encryption) | [`0x4776627e...c1f972f73`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x4776627e685a297a82a5ece27d81ca475a7d8d132fda8804e849313c1f972f73) |
+| Set oracle outcome | [`0x19b88f9a...c4ff4a1`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x19b88f9a825ad08f0244fd268e7ae2918d6cc9a6292c819af81f4b7e0c4ff4a1) |
+| Trigger resolution (Phase 2 SubmitCTX) | [`0x3062e7d5...002e51dc`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x3062e7d53d094d36b7e97e68e17c4bb779966d3d7fd3d8091c1e6992002e51dc) |
+| Redeem (Phase 3 ECIES-encrypted payout) | [`0x9a21ee61...ccdb95e`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x9a21ee61ba468922f64db8caf81568562afa19378fdf7abd4196d6715ccdb95e) |
 
 **SealedPool v2 (istanbul)** is the production contract. Configured with:
 - `submitCtxAddress = 0x...1B` (canonical Phase 2 SubmitCTX precompile)

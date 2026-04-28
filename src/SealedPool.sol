@@ -265,6 +265,61 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         emit SealedBetSubmitted(marketId, msg.sender, betIndex, stake);
     }
 
+    /// @notice Submit a sealed bet by passing the plaintext outcome. The
+    ///         contract encrypts internally via the Phase 3 precompiles
+    ///         (called with msg.sender == address(this), so the resulting
+    ///         ciphertext is bound to this pool as the CTX submitter).
+    /// @dev    For real privacy, callers should wrap this transaction via
+    ///         bite-ts Phase 1 so the plaintextOutcome stays encrypted in
+    ///         the mempool. Production-grade clients should produce both
+    ///         ciphertexts client-side via bite-ts and use the dual variant.
+    /// @param  marketId Market identifier.
+    /// @param  plaintextOutcome The chosen outcome index (will be encrypted on chain).
+    /// @param  viewerKey Bettor's secp256k1 public key for ECIES self-view.
+    /// @param  stake Plaintext stake amount.
+    function submitSealedBetWithEncryption(
+        uint256 marketId,
+        uint256 plaintextOutcome,
+        PublicKey calldata viewerKey,
+        uint256 stake
+    ) external nonReentrant {
+        Market storage m = _market(marketId);
+        if (m.status != MarketStatus.Open) revert MarketNotOpen();
+        if (block.timestamp >= m.submissionDeadline) revert SubmissionClosed();
+        if (stake == 0) revert ZeroStake();
+        if (plaintextOutcome >= m.outcomeCount) revert InvalidOutcome();
+        if (viewerKey.x == bytes32(0) && viewerKey.y == bytes32(0)) revert InvalidViewerKey();
+        if (m.bets.length >= MAX_BETS_PER_MARKET) revert TooManyBets();
+
+        // PHASE 3 inline encryption. msg.sender of these precompile calls is
+        // address(this) which matches the future CTX submitter. AAD aligned.
+        bytes memory te = BITE.encryptTE(encryptTeAddress, abi.encode(plaintextOutcome));
+        bytes memory ecies = BITE.encryptECIES(
+            encryptEciesAddress, abi.encode(plaintextOutcome), viewerKey
+        );
+
+        m.collateral.safeTransferFrom(msg.sender, address(this), stake);
+
+        uint256 betIndex = m.bets.length;
+        m.bets.push(
+            Bet({
+                bettor: msg.sender,
+                stake: stake,
+                viewerKey: viewerKey,
+                teEncryptedOutcome: te,
+                eciesEncryptedOutcome: ecies,
+                eciesEncryptedPayout: bytes(""),
+                chosenOutcome: 0,
+                payoutAmount: 0,
+                decrypted: false,
+                redeemed: false
+            })
+        );
+        m.totalStake += stake;
+
+        emit SealedBetSubmitted(marketId, msg.sender, betIndex, stake);
+    }
+
     /// @inheritdoc ISortesSealedPool
     /// @dev Legacy single-encryption submit. New clients should use the
     ///      dual-encryption variant above. v1 keeps this for ABI compat.
@@ -337,13 +392,17 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         }
 
         uint256 numBets = m.bets.length;
+        // SubmitCTX precompile requires equal-length encArgs and ptxArgs
+        // (one plaintext metadata blob per encrypted argument). Mirror
+        // confidential-poker showdown pattern: pack (marketId, betIndex)
+        // into each plaintext entry.
         bytes[] memory encArgs = new bytes[](numBets);
-        bytes[] memory ptxArgs = new bytes[](1);
+        bytes[] memory ptxArgs = new bytes[](numBets);
 
         for (uint256 i = 0; i < numBets; ++i) {
             encArgs[i] = m.bets[i].teEncryptedOutcome;
+            ptxArgs[i] = abi.encode(marketId, i);
         }
-        ptxArgs[0] = abi.encode(marketId);
 
         // PHASE 2: SubmitCTX precompile
         address payable callback = BITE.submitCTX(
@@ -574,12 +633,20 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         bytes[] calldata decryptedArguments,
         bytes[] calldata plaintextArguments
     ) private {
-        if (plaintextArguments.length != 1) revert CallbackArgsLengthMismatch();
-        uint256 decodedMarketId = abi.decode(plaintextArguments[0], (uint256));
-        if (decodedMarketId != marketId) revert UnknownCallback();
-
+        // Both arrays must match in length and in length to the bet array.
+        if (plaintextArguments.length != decryptedArguments.length) {
+            revert CallbackArgsLengthMismatch();
+        }
         Market storage m = _markets[marketId];
         if (decryptedArguments.length != m.bets.length) revert CallbackArgsLengthMismatch();
+
+        // Verify the first plaintext entry's marketId matches the registered
+        // pending marketId. Defensive check; pendingMarket[msg.sender] already
+        // routed us here.
+        if (plaintextArguments.length > 0) {
+            (uint256 decodedMarketId, ) = abi.decode(plaintextArguments[0], (uint256, uint256));
+            if (decodedMarketId != marketId) revert UnknownCallback();
+        }
 
         uint256 winningOutcome = m.oracleOutcome;
         uint256 numBets = decryptedArguments.length;

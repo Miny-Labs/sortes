@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Check, X, Sparkle } from "@phosphor-icons/react";
+import { X } from "@phosphor-icons/react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { ADDRESSES, ERC20_ABI } from "../lib/contracts";
@@ -13,10 +13,10 @@ const DISMISSED_KEY = "sortes:onboard:dismissed";
 const BET_DONE_KEY = "sortes:onboard:firstBetDone";
 const BET_EVENT = "sortes:firstBet";
 
-// First-time "from zero to your first sealed bet" path. Three steps that
-// auto-progress as the user makes progress, and the whole strip
-// self-destructs once the user is past it. Dismiss button stores a flag in
-// localStorage so returning users don't see it again.
+// Quiet onboarding line. Three numbered steps that auto-progress and
+// auto-dismiss when complete. No box, no eyebrow, no dots — just a single
+// hairline-bottom row of inline text. The active step picks up the signal
+// accent and exposes a CTA next to it.
 export function QuickStart() {
   const { address, isConnected } = useAccount();
   const [hydrated, setHydrated] = useState(false);
@@ -24,7 +24,6 @@ export function QuickStart() {
   const [betDone, setBetDone] = useState(false);
   const { claim, status: faucetStatus } = useFaucet();
 
-  // Defer localStorage reads until after hydration to keep SSR markup stable.
   useEffect(() => {
     setDismissed(localStorage.getItem(DISMISSED_KEY) === "1");
     setBetDone(localStorage.getItem(BET_DONE_KEY) === "1");
@@ -49,7 +48,7 @@ export function QuickStart() {
   });
 
   const balance = (usdcBal as bigint | undefined) ?? 0n;
-  const hasBalance = balance >= 1_000_000n; // 1 USDC.e
+  const hasBalance = balance >= 1_000_000n;
 
   const step1Done = isConnected;
   const step2Done = step1Done && hasBalance;
@@ -69,68 +68,50 @@ export function QuickStart() {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
         exit={{ opacity: 0, height: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="border-b border-white/[0.05] bg-gradient-to-b from-signal/[0.03] to-transparent"
+        className="border-b border-white/[0.05]"
       >
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-6 py-4 md:flex-row md:items-center md:justify-between md:gap-6">
-          <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-ink-400">
-            <Sparkle weight="duotone" className="h-3.5 w-3.5 text-signal" />
-            quick start
-          </div>
-
-          <ol className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2 md:justify-end">
-            <Step
-              n={1}
-              label="Connect"
-              done={step1Done}
-              active={activeStep === 1}
-            >
+        <div className="mx-auto flex max-w-[1400px] items-center gap-x-6 px-6 py-3 text-[12px]">
+          <ol className="flex flex-1 flex-wrap items-baseline gap-x-6 gap-y-1">
+            <Step n={1} label="connect" done={step1Done} active={activeStep === 1}>
               {!step1Done && (
                 <ConnectButton.Custom>
                   {({ openConnectModal, mounted }) =>
-                    mounted ? (
-                      <StepCta onClick={openConnectModal}>connect wallet →</StepCta>
-                    ) : null
+                    mounted ? <Cta onClick={openConnectModal}>connect →</Cta> : null
                   }
                 </ConnectButton.Custom>
               )}
             </Step>
-
-            <Sep />
-
             <Step
               n={2}
-              label="Claim 5 USDC.e"
+              label="claim 5 USDC.e"
               done={step2Done}
               active={activeStep === 2}
-              disabled={!step1Done}
+              dim={!step1Done}
             >
               {step1Done && !step2Done && address && (
-                <StepCta
-                  onClick={() => {
-                    claim(address).then(() => setTimeout(() => refetchBal(), 4000));
-                  }}
+                <Cta
+                  onClick={() =>
+                    claim(address).then(() => setTimeout(() => refetchBal(), 4000))
+                  }
                   disabled={faucetStatus === "pending"}
                 >
-                  {faucetStatus === "pending" ? "claiming…" : "claim faucet →"}
-                </StepCta>
+                  {faucetStatus === "pending" ? "claiming…" : "claim →"}
+                </Cta>
               )}
             </Step>
-
-            <Sep />
-
             <Step
               n={3}
-              label="Place a sealed bet"
+              label="place a sealed bet"
               done={step3Done}
               active={activeStep === 3}
-              disabled={!step2Done}
+              dim={!step2Done}
             >
               {step2Done && !step3Done && (
-                <StepCta
+                <Cta
                   onClick={() => {
                     document
                       .querySelector("[data-section='markets']")
@@ -138,7 +119,7 @@ export function QuickStart() {
                   }}
                 >
                   pick a market →
-                </StepCta>
+                </Cta>
               )}
             </Step>
           </ol>
@@ -146,7 +127,7 @@ export function QuickStart() {
           <button
             onClick={dismiss}
             aria-label="Dismiss quick start"
-            className="absolute right-4 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-white/[0.04] hover:text-ink-200 md:static"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-500 transition-colors hover:bg-white/[0.04] hover:text-ink-200"
           >
             <X weight="bold" className="h-3.5 w-3.5" />
           </button>
@@ -161,66 +142,41 @@ function Step({
   label,
   done,
   active,
-  disabled,
+  dim,
   children,
 }: {
   n: number;
   label: string;
   done: boolean;
   active: boolean;
-  disabled?: boolean;
+  dim?: boolean;
   children?: React.ReactNode;
 }) {
+  const numTone = done
+    ? "text-ink-600"
+    : active
+    ? "text-signal"
+    : dim
+    ? "text-ink-700"
+    : "text-ink-500";
   const labelTone = done
-    ? "text-ink-500 line-through decoration-ink-700"
+    ? "text-ink-600 line-through decoration-ink-700"
     : active
     ? "text-ink-100"
-    : disabled
+    : dim
     ? "text-ink-600"
     : "text-ink-400";
 
   return (
-    <li className="flex items-center gap-2 text-[12px]">
-      <Dot done={done} active={active} />
-      <span className="font-mono text-[10px] tabular-nums text-ink-500">
-        0{n}
-      </span>
+    <li className="flex items-baseline gap-2">
+      <span className={`num text-[10px] tabular-nums ${numTone}`}>0{n}</span>
       <span className={labelTone}>{label}</span>
       {children}
     </li>
   );
 }
 
-function Dot({ done, active }: { done: boolean; active: boolean }) {
-  if (done) {
-    return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-signal/10 ring-1 ring-signal/40">
-        <Check weight="bold" className="h-3 w-3 text-signal" />
-      </span>
-    );
-  }
-  return (
-    <span
-      className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full border ${
-        active ? "border-signal/60" : "border-white/10"
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          active ? "bg-signal animate-pulse-soft" : "bg-ink-700"
-        }`}
-      />
-    </span>
-  );
-}
-
-function Sep() {
-  return (
-    <li aria-hidden className="hidden h-px w-5 bg-white/[0.06] md:inline-block" />
-  );
-}
-
-function StepCta({
+function Cta({
   onClick,
   disabled,
   children,
@@ -233,7 +189,7 @@ function StepCta({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="ml-1 text-[12px] text-signal underline-offset-4 transition-colors hover:underline disabled:opacity-50"
+      className="ml-1 text-signal underline-offset-4 transition-colors hover:underline disabled:opacity-50"
     >
       {children}
     </button>

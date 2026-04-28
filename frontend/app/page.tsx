@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Lock, Eye, ShieldCheck } from "@phosphor-icons/react";
+import { ArrowUpRight } from "@phosphor-icons/react";
 
 import { MarketCard } from "../components/MarketCard";
 import { MarketDrawer } from "../components/MarketDrawer";
@@ -85,142 +85,60 @@ export default function HomePage() {
 }
 
 function Hero({ totals }: { totals: { stake: bigint; bets: bigint; open: number } }) {
-  return (
-    <section className="relative mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-6 pb-12 pt-16 lg:grid-cols-[1.4fr_1fr] lg:pb-20 lg:pt-24">
-      <div className="relative">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="label-eyebrow"
-        >
-          Sortes · sealed prediction markets
-        </motion.div>
-        <motion.h1
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-5 max-w-[18ch] text-balance font-display text-[44px] font-medium leading-[0.95] tracking-tightest text-ink-100 md:text-[64px]"
-        >
-          Public liquidity. <span className="text-ink-400">Sealed</span> direction.
-        </motion.h1>
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-6 max-w-[52ch] text-pretty text-[15px] leading-relaxed text-ink-400"
-        >
-          A prediction market that hides which side you took until enough other bettors take a side
-          with you. Encrypted on-chain via SKALE BITE Phase&nbsp;3, settled in batched aggregates,
-          paid out pari-mutuel from a unified pot.
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-8 flex flex-wrap items-center gap-2"
-        >
-          <Capsule icon={<Lock weight="duotone" className="h-3.5 w-3.5 text-signal" />}>
-            sealed direction
-          </Capsule>
-          <Capsule icon={<Eye weight="duotone" className="h-3.5 w-3.5 text-ink-300" />}>
-            aggregate-only odds, N≥2
-          </Capsule>
-          <Capsule icon={<ShieldCheck weight="duotone" className="h-3.5 w-3.5 text-ink-300" />}>
-            unified TVL, public + confidential
-          </Capsule>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-10 flex items-center gap-3 text-[11px] text-ink-500"
-        >
-          <a
-            href={`${EXPLORER_URL}/address/${ADDRESSES.SealedPool}`}
-            target="_blank"
-            rel="noreferrer"
-            className="num inline-flex items-center gap-1 underline-offset-4 hover:text-ink-200 hover:underline"
-          >
-            SealedPool {ADDRESSES.SealedPool.slice(0, 8)}…{ADDRESSES.SealedPool.slice(-4)}
-            <ArrowUpRight className="h-3 w-3" />
-          </a>
-          <span className="text-ink-700">·</span>
-          <span className="num">SKALE Base Sepolia</span>
-          <span className="text-ink-700">·</span>
-          <span className="num">v4 unified-TVL + confidential bets</span>
-        </motion.div>
-      </div>
-
-      <StatsCard totals={totals} />
-    </section>
-  );
-}
-
-function Capsule({ children, icon }: { children: React.ReactNode; icon: React.ReactNode }) {
-  return (
-    <span className="pill cursor-default">
-      {icon}
-      <span>{children}</span>
-    </span>
-  );
-}
-
-// Stats column. Drops the 3-equal-stat hero-metric template and the radial
-// glow accent in favor of a quiet ledger of term/value rows separated by
-// hairlines. The Privacy stack lands directly below as a second ledger,
-// without nesting cards.
-function StatsCard({ totals }: { totals: { stake: bigint; bets: bigint; open: number } }) {
   const stake = (Number(totals.stake) / 1_000_000).toLocaleString(undefined, {
     maximumFractionDigits: 2,
   });
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-      className="self-start space-y-10"
-    >
-      <div>
-        <div className="label-eyebrow">Live state</div>
-        <dl className="mt-4 divide-y divide-white/[0.05] border-y border-white/[0.05]">
-          <LedgerRow term="public stake" value={`${stake} USDC.e`} />
-          <LedgerRow term="bets sealed" value={totals.bets.toString()} />
-          <LedgerRow term="markets open" value={totals.open.toString()} />
-        </dl>
-      </div>
+    <section className="relative mx-auto max-w-[1400px] px-6 pb-16 pt-20 lg:pb-24 lg:pt-28">
+      <motion.h1
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        className="max-w-[14ch] text-balance font-display font-medium leading-[0.88] tracking-tightest text-ink-100"
+        style={{ fontSize: "clamp(3rem, 9vw, 8rem)" }}
+      >
+        Public liquidity.{" "}
+        <span className="text-ink-500">Sealed</span> direction.
+      </motion.h1>
 
-      <div>
-        <div className="label-eyebrow">Privacy stack</div>
-        <ul className="mt-4 space-y-3">
-          <Layer name="PHASE 3" body="ECIES re-encrypt of payouts under your viewer key." />
-          <Layer name="PHASE 2" body="CTX batch decrypts every direction at resolution." />
-          <Layer name="CNFUSDC" body="ERC-20 wrapper. Encrypted balances for amount-privacy." />
-          <Layer name="N≥2" body="Aggregate odds publish only after a 2-bet batch." />
-        </ul>
-      </div>
-    </motion.div>
-  );
-}
+      <motion.p
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+        className="mt-10 max-w-[42ch] text-[16px] leading-relaxed text-ink-300 md:text-[18px]"
+      >
+        Sealed-bid prediction markets. Direction encrypted on-chain via SKALE BITE.
+      </motion.p>
 
-function LedgerRow({ term, value }: { term: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-6 py-3.5">
-      <dt className="text-[13px] text-ink-300">{term}</dt>
-      <dd className="num text-[15px] font-medium text-ink-100">{value}</dd>
-    </div>
-  );
-}
-
-function Layer({ name, body }: { name: string; body: string }) {
-  return (
-    <li className="flex items-baseline gap-3">
-      <span className="num shrink-0 text-[10px] uppercase tracking-[0.18em] text-signal">
-        {name}
-      </span>
-      <span className="text-ink-300">{body}</span>
-    </li>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.35, duration: 0.6 }}
+        className="mt-14 flex flex-wrap items-baseline gap-x-8 gap-y-2 font-mono text-[12px] tabular-nums text-ink-400"
+      >
+        <span>
+          <span className="text-[15px] text-ink-100">{totals.open}</span>{" "}
+          <span className="text-ink-500">markets open</span>
+        </span>
+        <span>
+          <span className="text-[15px] text-ink-100">{totals.bets.toString()}</span>{" "}
+          <span className="text-ink-500">bets sealed</span>
+        </span>
+        <span>
+          <span className="text-[15px] text-ink-100">{stake}</span>{" "}
+          <span className="text-ink-500">USDC.e public stake</span>
+        </span>
+        <a
+          href={`${EXPLORER_URL}/address/${ADDRESSES.SealedPool}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-ink-500 underline-offset-4 hover:text-ink-200 hover:underline"
+        >
+          contract {ADDRESSES.SealedPool.slice(0, 6)}…{ADDRESSES.SealedPool.slice(-4)}
+          <ArrowUpRight className="h-3 w-3" />
+        </a>
+      </motion.div>
+    </section>
   );
 }
 

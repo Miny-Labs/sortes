@@ -67,12 +67,21 @@ the chosen amount of bridged USDC.e into the SKALE confidential ERC-20 at
 - `lib/markets.ts` — read hooks (`useAllMarkets`, `useMarket`, aggregates).
 - `lib/faucet.ts` — `useFaucet` client hook.
 
-## Sealed bet path (current contract)
+## Bet paths (current contract — v4)
 
-The deployed `v3-unifiedTVL` SealedPool exposes `submitSealedBetWithEncryption`
-which seals direction inline via Phase 3. The matching `submitConfidentialBet`
-entrypoint that wires cnfUSDC.e amount-privacy is queued for v3.1; the wrap
-flow ships now so users can pre-fund their confidential balance.
+The deployed `v4-confidentialBet` SealedPool exposes both:
+
+- `submitSealedBetWithEncryption` — sealed direction in USDC.e collateral.
+- `submitConfidentialBet` — sealed direction AND sealed stake amount in cnfUSDC.e
+  collateral. Owner enables this per market via `setMarketConfidentialCollateral`.
+  Cross-pot wrap/unwrap inside redeem keeps unified-TVL solvency without parallel
+  pre-funded reserves.
+
+The bet form's mode toggle picks between them. Confidential mode requires the
+caller to hold cnfUSDC.e (wrap from the wallet drawer) and a registered viewer
+key on the cnfUSDC.e contract — first-time users will see the contract revert
+asking them to register; do that once on cnfUSDC.e directly via the wallet
+drawer's wrap card.
 
 ## Deploy
 

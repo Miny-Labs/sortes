@@ -5,12 +5,14 @@ import { Test } from "forge-std/Test.sol";
 import { BiteMock } from "@skalenetwork/bite-solidity/test/BiteMock.sol";
 import { SubmitCTXMock } from "@skalenetwork/bite-solidity/test/SubmitCTXMock.sol";
 import { EncryptECIESMock } from "@skalenetwork/bite-solidity/test/EncryptECIESMock.sol";
+import { EncryptTEMock } from "@skalenetwork/bite-solidity/test/EncryptTEMock.sol";
 
 import { SealedPool } from "../src/SealedPool.sol";
 import { ISortesSealedPool } from "../src/interfaces/ISortesSealedPool.sol";
 import { PublicKey } from "@skalenetwork/bite-solidity/types.sol";
 
 import { MockUSDC } from "./mocks/MockUSDC.sol";
+import { MockConfidentialToken } from "./mocks/MockConfidentialToken.sol";
 
 /// @notice Behavioural tests for SealedPool v2 (Phase 2 + Phase 3) against the
 ///         BITE mock stack. Covers both the dual-encryption submitSealedBet
@@ -23,6 +25,7 @@ contract SealedPoolTest is Test {
     BiteMock internal bite;
     SubmitCTXMock internal submitCTXMock;
     EncryptECIESMock internal encryptECIESMock;
+    EncryptTEMock internal encryptTEMock;
 
     address internal owner = address(0xA1);
     address internal treasury = address(0xB1);
@@ -41,11 +44,14 @@ contract SealedPoolTest is Test {
         bite = new BiteMock();
         submitCTXMock = new SubmitCTXMock(bite);
         encryptECIESMock = new EncryptECIESMock(bite);
+        encryptTEMock = new EncryptTEMock(bite);
 
-        // Plant EncryptECIESMock code at the canonical 0x1C address so the
-        // SealedPool's onDecrypt path that calls BITE.encryptECIES resolves
-        // through the mock during local tests.
+        // Plant EncryptECIESMock code at 0x1C and EncryptTEMock at 0x1D so
+        // every BITE.encryptECIES / BITE.encryptTE call inside SealedPool
+        // resolves through the mock during local tests (matches the live
+        // SKALE precompile addresses).
         vm.etch(address(uint160(0x1C)), address(encryptECIESMock).code);
+        vm.etch(address(uint160(0x1D)), address(encryptTEMock).code);
 
         vm.deal(owner, 10 ether);
         vm.prank(owner);
@@ -538,6 +544,172 @@ contract SealedPoolTest is Test {
             uint256(pool.statusOf(marketId)),
             uint256(ISortesSealedPool.MarketStatus.AwaitingDecryption)
         );
+    }
+
+    // ─── Confidential bet path (unified TVL) ───────────────────────────
+
+    function _deployCnf(address[] memory holders, uint256 mintEach)
+        internal
+        returns (MockConfidentialToken cnf)
+    {
+        cnf = new MockConfidentialToken(bite);
+        cnf.setUnderlying(usdc);
+        // Fund the cnf contract with enough USDC.e to cover any unwrap.
+        usdc.mint(address(cnf), 100_000 * ONE_USDC);
+        for (uint256 i = 0; i < holders.length; ++i) {
+            cnf.mint(holders[i], mintEach);
+        }
+    }
+
+    function _confidentialBet(
+        MockConfidentialToken cnf,
+        address from,
+        uint256 marketId,
+        uint256 outcome,
+        uint256 stake
+    ) internal {
+        // Real cnfUSDC would require an allowance / encryptedTransfer call here.
+        // The mock skips the allowance check, so the only thing left is
+        // submitting the bet.
+        cnf;
+        vm.prank(from);
+        pool.submitConfidentialBet(marketId, outcome, stake, _viewerKey(from));
+    }
+
+    function test_SetMarketConfidentialCollateralRequiresOpen() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        MockConfidentialToken cnf = new MockConfidentialToken(bite);
+
+        vm.prank(owner);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+        assertEq(pool.confidentialCollateralOf(marketId), address(cnf));
+
+        // Cancel and confirm setter then reverts.
+        vm.prank(owner);
+        pool.cancelMarket(marketId);
+
+        vm.prank(owner);
+        vm.expectRevert(SealedPool.MarketNotOpen.selector);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+    }
+
+    function test_ConfidentialBetRequiresEnabledCollateral() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+
+        vm.prank(alice);
+        vm.expectRevert(SealedPool.ConfidentialNotEnabled.selector);
+        pool.submitConfidentialBet(marketId, 1, 100 * ONE_USDC, _viewerKey(alice));
+    }
+
+    function test_ConfidentialBetEscrowsAndAccountsInUnifiedPot() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        address[] memory holders = new address[](2);
+        holders[0] = alice;
+        holders[1] = bob;
+        MockConfidentialToken cnf = _deployCnf(holders, 5_000 * ONE_USDC);
+
+        vm.prank(owner);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+
+        uint256 aliceConfStake = 400 * ONE_USDC;
+        uint256 bobConfStake = 600 * ONE_USDC;
+
+        // Mix one public bet so the unified-TVL math gets exercised.
+        uint256 carolPublicStake = 1_000 * ONE_USDC;
+        _betDual(carol, marketId, 0, carolPublicStake);
+
+        _confidentialBet(cnf, alice, marketId, 1, aliceConfStake);
+        _confidentialBet(cnf, bob,   marketId, 1, bobConfStake);
+
+        assertEq(pool.confidentialBetCountOf(marketId), 2);
+        assertEq(cnf.balanceOf(address(pool)), aliceConfStake + bobConfStake);
+        assertEq(cnf.balanceOf(alice), 5_000 * ONE_USDC - aliceConfStake);
+        assertEq(cnf.balanceOf(bob),   5_000 * ONE_USDC - bobConfStake);
+
+        skip(2 days);
+        vm.prank(owner);
+        pool.setOracleOutcome(marketId, 1);
+
+        pool.triggerResolution(marketId);
+        bite.sendCallback();
+
+        assertEq(
+            uint256(pool.statusOf(marketId)),
+            uint256(ISortesSealedPool.MarketStatus.Resolved)
+        );
+
+        // Confidential bets that picked outcome 1 win. Payouts are
+        // (stake * netPot) / (publicWinning + confidentialWinning).
+        // publicWinning here is 0 (carol picked 0), so confidential winners
+        // split the entire net pot.
+        uint256 totalStake = carolPublicStake + aliceConfStake + bobConfStake;
+        uint256 fee = totalStake * 100 / 10_000;
+        uint256 netPot = totalStake - fee;
+        uint256 winningStake = aliceConfStake + bobConfStake;
+        uint256 expectedAlice = aliceConfStake * netPot / winningStake;
+        uint256 expectedBob   = bobConfStake   * netPot / winningStake;
+
+        // Redeem flushes encrypted payouts back to the holders. Mock balances
+        // increase by exactly the expected amounts.
+        uint256 aliceCnfBefore = cnf.balanceOf(alice);
+        vm.prank(alice);
+        pool.redeemConfidential(marketId, 0);
+        assertEq(cnf.balanceOf(alice) - aliceCnfBefore, expectedAlice);
+
+        uint256 bobCnfBefore = cnf.balanceOf(bob);
+        vm.prank(bob);
+        pool.redeemConfidential(marketId, 1);
+        assertEq(cnf.balanceOf(bob) - bobCnfBefore, expectedBob);
+
+        // Carol is a public loser — confirm normal redeem still rejects.
+        vm.prank(carol);
+        vm.expectRevert(SealedPool.NotAWinner.selector);
+        pool.redeem(marketId, 0);
+    }
+
+    function test_CannotChangeCollateralAfterFirstConfidentialBet() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        address[] memory holders = new address[](1);
+        holders[0] = alice;
+        MockConfidentialToken cnf = _deployCnf(holders, 1_000 * ONE_USDC);
+
+        vm.prank(owner);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+
+        _confidentialBet(cnf, alice, marketId, 1, 100 * ONE_USDC);
+
+        MockConfidentialToken otherCnf = new MockConfidentialToken(bite);
+        vm.prank(owner);
+        vm.expectRevert(SealedPool.ConfidentialNotEnabled.selector);
+        pool.setMarketConfidentialCollateral(marketId, address(otherCnf));
+    }
+
+    function test_ConfidentialBetRejectsZeroStake() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        address[] memory holders = new address[](1);
+        holders[0] = alice;
+        MockConfidentialToken cnf = _deployCnf(holders, 1_000 * ONE_USDC);
+
+        vm.prank(owner);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+
+        vm.prank(alice);
+        vm.expectRevert(SealedPool.ZeroStake.selector);
+        pool.submitConfidentialBet(marketId, 1, 0, _viewerKey(alice));
+    }
+
+    function test_ConfidentialBetRejectsInvalidOutcome() public {
+        uint256 marketId = _createBinaryMarket(1 days, 2 days);
+        address[] memory holders = new address[](1);
+        holders[0] = alice;
+        MockConfidentialToken cnf = _deployCnf(holders, 1_000 * ONE_USDC);
+
+        vm.prank(owner);
+        pool.setMarketConfidentialCollateral(marketId, address(cnf));
+
+        vm.prank(alice);
+        vm.expectRevert(SealedPool.InvalidOutcome.selector);
+        pool.submitConfidentialBet(marketId, 5, 100 * ONE_USDC, _viewerKey(alice));
     }
 
     function test_WithdrawExcessReserveRespectsMinimum() public {

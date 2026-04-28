@@ -20,6 +20,11 @@ interface IConfidentialToken {
     function encryptedTransfer(address to, bytes calldata value) external;
 }
 
+interface IConfidentialWrapper {
+    function depositFor(address account, uint256 value) external returns (bool);
+    function withdrawTo(address account, uint256 value) external returns (bool);
+}
+
 /// @title  SealedPool (v2) — tight Phase 2 + Phase 3 integration
 /// @author Sortes contributors
 /// @notice Sealed-bid prediction market pool implementing Pattern 3 from the
@@ -108,6 +113,8 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         uint256 winningStake;          // PUBLIC winningStake
         uint256 confidentialTotalStake;   // populated in onDecrypt
         uint256 confidentialWinningStake; // populated in onDecrypt
+        uint256 publicPoolBalance;        // running USDC.e held for this market
+        uint256 confidentialPoolBalance;  // running cnfUSDC.e held for this market
         Bet[] bets;
         ConfidentialBet[] confidentialBets;
     }
@@ -364,6 +371,7 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
             })
         );
         m.totalStake += stake;
+        m.publicPoolBalance += stake;
 
         emit SealedBetSubmitted(marketId, msg.sender, betIndex, stake);
     }
@@ -419,6 +427,7 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
             })
         );
         m.totalStake += stake;
+        m.publicPoolBalance += stake;
 
         emit SealedBetSubmitted(marketId, msg.sender, betIndex, stake);
     }
@@ -459,8 +468,136 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
             })
         );
         m.totalStake += stake;
+        m.publicPoolBalance += stake;
 
         emit SealedBetSubmitted(marketId, msg.sender, betIndex, stake);
+    }
+
+    /// @notice Enable confidential collateral on an open market. Pass address(0)
+    ///         to disable. Owner only. Once set, bettors can call
+    ///         submitConfidentialBet to bet with stake-amount privacy.
+    /// @dev    Cannot be changed once any confidential bet has been placed,
+    ///         to prevent collateral swap-out attacks.
+    function setMarketConfidentialCollateral(uint256 marketId, address token)
+        external
+        onlyOwner
+    {
+        Market storage m = _market(marketId);
+        if (m.status != MarketStatus.Open) revert MarketNotOpen();
+        if (m.confidentialBets.length != 0) revert ConfidentialNotEnabled();
+        m.confidentialCollateral = IERC20(token);
+
+        // Approve the wrapper to pull this market's USDC.e on demand. Used by
+        // redeemConfidential when confidential winners' fair share exceeds the
+        // cnfUSDC.e the pool received: the pool wraps the deficit lazily so
+        // unified-TVL solvency holds without a parallel pre-funded reserve.
+        if (token != address(0)) {
+            m.collateral.forceApprove(token, type(uint256).max);
+        }
+
+        emit ConfidentialCollateralSet(marketId, token);
+    }
+
+    /// @notice Submit a confidential bet. Direction AND stake amount are kept
+    ///         private. Pulls collateral via cUSDC.encryptedTransferFrom using
+    ///         the SAME teEncryptedStake ciphertext that gets stored, so the
+    ///         caller cannot fork stake values between transfer and bookkeeping.
+    /// @param  marketId         Market identifier.
+    /// @param  plaintextOutcome Caller's outcome choice (encrypted inline).
+    /// @param  plaintextStake   Caller's stake amount in the wrapper's units.
+    ///                          Encrypted inline; only the bettor and the
+    ///                          BITE network learn it during onDecrypt.
+    /// @param  viewerKey        Bettor's secp256k1 viewer key (uncompressed
+    ///                          x/y). Used to ECIES-encrypt direction, stake,
+    ///                          and payout.
+    function submitConfidentialBet(
+        uint256 marketId,
+        uint256 plaintextOutcome,
+        uint256 plaintextStake,
+        PublicKey calldata viewerKey
+    ) external nonReentrant {
+        Market storage m = _market(marketId);
+        if (m.status != MarketStatus.Open) revert MarketNotOpen();
+        if (block.timestamp >= m.submissionDeadline) revert SubmissionClosed();
+        if (plaintextStake == 0) revert ZeroStake();
+        if (plaintextOutcome >= m.outcomeCount) revert InvalidOutcome();
+        if (viewerKey.x == bytes32(0) && viewerKey.y == bytes32(0)) revert InvalidViewerKey();
+        if (m.confidentialBets.length >= MAX_BETS_PER_MARKET) revert TooManyBets();
+        if (address(m.confidentialCollateral) == address(0)) revert ConfidentialNotEnabled();
+
+        // PHASE 3 inline encryption — msg.sender for these precompile calls
+        // is address(this), which matches the future SubmitCTX caller. AAD
+        // alignment is preserved.
+        bytes memory teDir = BITE.encryptTE(
+            encryptTeAddress, abi.encode(plaintextOutcome)
+        );
+        bytes memory teStake = BITE.encryptTE(
+            encryptTeAddress, abi.encode(plaintextStake)
+        );
+        bytes memory eciesDir = BITE.encryptECIES(
+            encryptEciesAddress, abi.encode(plaintextOutcome), viewerKey
+        );
+        bytes memory eciesStake = BITE.encryptECIES(
+            encryptEciesAddress, abi.encode(plaintextStake), viewerKey
+        );
+
+        // Pull confidential collateral. Reusing teStake here means the bettor
+        // cannot fork the stored stake from the transferred amount: cUSDC
+        // validates a CTX over teStake, and onDecrypt reads the SAME ciphertext.
+        IConfidentialToken(address(m.confidentialCollateral))
+            .encryptedTransferFrom(msg.sender, address(this), teStake);
+
+        uint256 betIndex = m.confidentialBets.length;
+        m.confidentialBets.push(
+            ConfidentialBet({
+                bettor: msg.sender,
+                viewerKey: viewerKey,
+                teEncryptedDirection: teDir,
+                teEncryptedStake: teStake,
+                eciesEncryptedDirection: eciesDir,
+                eciesEncryptedStake: eciesStake,
+                eciesEncryptedPayout: bytes(""),
+                chosenOutcome: 0,
+                stake: 0,
+                payoutAmount: 0,
+                decrypted: false,
+                redeemed: false
+            })
+        );
+
+        emit ConfidentialBetSubmitted(marketId, msg.sender, betIndex);
+    }
+
+    /// @notice Read the confidential collateral address (cnfUSDC.e wrapper)
+    ///         for a market. Returns address(0) if confidential mode is off.
+    function confidentialCollateralOf(uint256 marketId) external view returns (address) {
+        return address(_market(marketId).confidentialCollateral);
+    }
+
+    /// @notice Read a confidential bet's metadata. Encrypted blobs are
+    ///         omitted to keep return size small; query
+    ///         confidentialEncryptedPayoutOf for the ECIES payout claim.
+    function confidentialBetInfo(uint256 marketId, uint256 betIndex)
+        external
+        view
+        returns (
+            address bettor,
+            uint256 chosenOutcome,
+            uint256 stake,
+            uint256 payoutAmount,
+            bool decrypted,
+            bool redeemed
+        )
+    {
+        ConfidentialBet storage cbet = _market(marketId).confidentialBets[betIndex];
+        return (
+            cbet.bettor,
+            cbet.chosenOutcome,
+            cbet.stake,
+            cbet.payoutAmount,
+            cbet.decrypted,
+            cbet.redeemed
+        );
     }
 
     /// @inheritdoc ISortesSealedPool
@@ -643,7 +780,8 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         uint256 payout;
         if (m.status == MarketStatus.Cancelled) {
             payout = bet.stake;
-        } else if (m.winningStake == 0) {
+        } else if (m.winningStake + m.confidentialWinningStake == 0) {
+            // No winners on either side — refund every bettor's stake.
             payout = bet.stake;
         } else if (bet.chosenOutcome == m.oracleOutcome) {
             payout = bet.payoutAmount; // pre-computed in onDecrypt
@@ -652,6 +790,20 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         }
 
         bet.redeemed = true;
+
+        // UNIFIED TVL solvency: if a public winner's fair share exceeds the
+        // USDC.e the pool received from public bets in this market, top up by
+        // unwrapping the deficit out of the confidential collateral the pool
+        // is holding for this market. Burns cnfUSDC.e -> releases USDC.e.
+        if (payout > m.publicPoolBalance && address(m.confidentialCollateral) != address(0)) {
+            uint256 deficit = payout - m.publicPoolBalance;
+            require(deficit <= m.confidentialPoolBalance, "SealedPool: pool insolvent");
+            IConfidentialWrapper(address(m.confidentialCollateral)).withdrawTo(address(this), deficit);
+            m.confidentialPoolBalance -= deficit;
+            m.publicPoolBalance += deficit;
+        }
+        m.publicPoolBalance -= payout;
+
         m.collateral.safeTransfer(bet.bettor, payout);
         emit Redeemed(marketId, msg.sender, payout);
     }
@@ -685,6 +837,18 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         }
 
         cbet.redeemed = true;
+
+        // UNIFIED TVL solvency: if a confidential winner's fair share exceeds
+        // the cnfUSDC.e the pool received, wrap the deficit out of the public
+        // collateral by depositing USDC.e into the wrapper for this pool.
+        if (payout > m.confidentialPoolBalance) {
+            uint256 deficit = payout - m.confidentialPoolBalance;
+            require(deficit <= m.publicPoolBalance, "SealedPool: pool insolvent");
+            IConfidentialWrapper(address(m.confidentialCollateral)).depositFor(address(this), deficit);
+            m.publicPoolBalance -= deficit;
+            m.confidentialPoolBalance += deficit;
+        }
+        m.confidentialPoolBalance -= payout;
 
         // Re-encrypt the payout amount for cUSDC.encryptedTransfer.
         // (The pool itself is the sender; cUSDC's CTX validates pool's
@@ -933,6 +1097,7 @@ contract SealedPool is ISortesSealedPool, IBiteSupplicant, Ownable, ReentrancyGu
         m.winningStake = publicWinningStake;
         m.confidentialTotalStake = confidentialTotalStake;
         m.confidentialWinningStake = confidentialWinningStake;
+        m.confidentialPoolBalance = confidentialTotalStake;
 
         // UNIFIED POT MATH. Both arrays share the same pot, so a confidential
         // whale with stake X (in cUSDC) gets matched against losing bets from

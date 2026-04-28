@@ -136,7 +136,7 @@ function Hero({ totals }: { totals: { stake: bigint; bets: bigint; open: number 
           <span className="text-ink-700">·</span>
           <span className="num">SKALE Base Sepolia</span>
           <span className="text-ink-700">·</span>
-          <span className="num">v3 unified-TVL</span>
+          <span className="num">v4 unified-TVL + confidential bets</span>
         </motion.div>
       </div>
 

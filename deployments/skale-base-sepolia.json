@@ -34,17 +34,24 @@
   },
   "sortes": {
     "SealedPool": {
-      "version": "v3-unifiedTVL",
-      "address": "0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589",
-      "deploymentTx": "0xd519f5f04b557c2cbb040a8fe949115575e8631d4413097981019dbeb60a7927",
+      "version": "v4-confidentialBet",
+      "address": "0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d",
+      "deploymentTx": "0x55509a88784abcce7e65e21ae91c5e468c691b258026d6fd34edbba3cfc9441b",
       "owner": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "treasury": "0xdE1E06268A87f4EDABad45fF23f3c226cF064664",
       "verified": true,
-      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589",
+      "explorer": "https://base-sepolia-testnet-explorer.skalenodes.com/address/0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d",
       "evmVersion": "istanbul",
       "solcVersion": "0.8.27",
       "biteSolidityVersion": "1.0.1-stable.0",
       "openZeppelinVersion": "5.4.0",
+      "newSinceV3": [
+        "submitConfidentialBet — encrypted-direction + encrypted-stake bets backed by cnfUSDC.e",
+        "setMarketConfidentialCollateral — owner enables cnfUSDC.e per market, gated until first confidential bet",
+        "Cross-pot wrap/unwrap inside redeem and redeemConfidential keeps unified-TVL solvency without parallel pre-funded reserves",
+        "publicPoolBalance / confidentialPoolBalance counters track per-market inventory in clear",
+        "confidentialBetInfo + confidentialCollateralOf views"
+      ],
       "config": {
         "ctxCallbackValueWei": "100000000000000",
         "ctxCallbackValueFormatted": "0.0001 CREDIT (testnet sizing; mainnet target 0.06 ETH/SFUEL)",
@@ -74,6 +81,10 @@
     }
   },
   "deprecated_deployments": {
+    "v3-unifiedTVL": {
+      "address": "0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589",
+      "reason": "Unified-TVL design but missing submitConfidentialBet entrypoint and missing cross-pot solvency wrap/unwrap. Replaced by v4."
+    },
     "v2-istanbul-inline_E2E_proof": {
       "address": "0x05aD32257EE764721D9f97BDD1520ed1146701E3",
       "reason": "First fully-working SealedPool with inline Phase 3 encryption + ECIES re-encryption + live E2E proof. Replaced by v3 with unified-TVL design (adds confidential bet path)."

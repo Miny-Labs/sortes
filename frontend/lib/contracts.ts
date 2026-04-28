@@ -2,7 +2,7 @@ import type { Abi } from "viem";
 import SealedPoolAbi from "../../abi/SealedPool.json";
 
 export const ADDRESSES = {
-  SealedPool: "0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589" as `0x${string}`,
+  SealedPool: "0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d" as `0x${string}`,
   ConfidentialWrapper_cUSDC: "0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb" as `0x${string}`,
   USDC_e: "0x2e08028E3C4c2356572E096d8EF835cD5C6030bD" as `0x${string}`,
 } as const;

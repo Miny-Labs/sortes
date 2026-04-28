@@ -22,7 +22,7 @@ export function TopBar() {
             <Mark />
             <div className="flex flex-col leading-none">
               <span className="text-[15px] font-medium tracking-tight text-ink-100">sortes</span>
-              <span className="font-mono text-[9px] tracking-[0.2em] text-ink-500">SEALED · v3</span>
+              <span className="font-mono text-[9px] tracking-[0.2em] text-ink-500">SEALED · v4</span>
             </div>
           </Link>
 

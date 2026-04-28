@@ -270,6 +270,74 @@
   },
   {
     "type": "function",
+    "name": "confidentialBetInfo",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "betIndex",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "bettor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "chosenOutcome",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "stake",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "decrypted",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "redeemed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "confidentialCollateralOf",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "confidentialEncryptedPayoutOf",
     "inputs": [
       {
@@ -628,6 +696,24 @@
   },
   {
     "type": "function",
+    "name": "setMarketConfidentialCollateral",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setMarketOracleAdapter",
     "inputs": [
       {
@@ -719,6 +805,46 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "submitConfidentialBet",
+    "inputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "plaintextOutcome",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "plaintextStake",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "viewerKey",
+        "type": "tuple",
+        "internalType": "struct PublicKey",
+        "components": [
+          {
+            "name": "x",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "y",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",

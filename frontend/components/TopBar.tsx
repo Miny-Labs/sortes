@@ -16,7 +16,7 @@ export function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30">
+      <header className="fixed inset-x-0 top-0 z-30">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-end px-6">
           {isConnected && address ? (
             <WalletButton address={address} onClick={() => setWalletOpen(true)} />

@@ -145,15 +145,19 @@ Earlier deployments (v0, v2-cancun, v2-istanbul without inline encryption) are r
 
 #### Live end-to-end proof on chain
 
-A full lifecycle ran on SKALE Base Sepolia using real BITE Phase 2 + Phase 3 precompiles, no mocks. Bet 1 USDC.e, oracle resolved correctly, payout 0.99 USDC.e returned (1.0 minus 1% protocol fee).
+The full lifecycle has been re-proven against the v3 unified-TVL contract on SKALE Base Sepolia using real BITE Phase 2 + Phase 3 precompiles, no mocks. Bet 1 USDC.e, oracle resolved correctly, payout 0.99 USDC.e returned (1.0 minus 1% protocol fee).
+
+**v3 unified-TVL contract** ([`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589)):
 
 | Step | Tx |
 | --- | --- |
-| Create market | [`0x9dc47cae...3625aef`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x9dc47cae2f36f4033a3203bf510bd6c59718d5aaf675e0be100b6d3f43625aef) |
-| Submit sealed bet (inline Phase 3 encryption) | [`0x4776627e...c1f972f73`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x4776627e685a297a82a5ece27d81ca475a7d8d132fda8804e849313c1f972f73) |
-| Set oracle outcome | [`0x19b88f9a...c4ff4a1`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x19b88f9a825ad08f0244fd268e7ae2918d6cc9a6292c819af81f4b7e0c4ff4a1) |
-| Trigger resolution (Phase 2 SubmitCTX) | [`0x3062e7d5...002e51dc`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x3062e7d53d094d36b7e97e68e17c4bb779966d3d7fd3d8091c1e6992002e51dc) |
-| Redeem (Phase 3 ECIES-encrypted payout) | [`0x9a21ee61...ccdb95e`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x9a21ee61ba468922f64db8caf81568562afa19378fdf7abd4196d6715ccdb95e) |
+| Create market | [`0xc50d535b...db410098`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xc50d535b4b274cbac46d33749b1e2add4fb098dfe64781f005c1c219db410098) |
+| Submit sealed bet (inline Phase 3 encryption) | [`0x140af0c5...c61fe74`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x140af0c5052f105add9a3687dc37c19a897bd5a9e0e898d2cde3c86c3c61fe74) |
+| Set oracle outcome | [`0x8d2115ec...74a5867`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x8d2115ec25e03e8f9fbf53de09114f2525f16bdbf6c56fbc563b05d1174a5867) |
+| Trigger resolution (Phase 2 SubmitCTX) | [`0xb6e5e193...ffb5002`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xb6e5e1932f873f2e1930a1e9ddb928d69d3e143992e6628a855ec6797ffb5002) |
+| Redeem (Phase 3 ECIES-encrypted payout) | [`0xc911790d...3dcbebf`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xc911790d63c536b0588321b2df956d87461a88d8989a4fc2d1dce44493dcbebf) |
+
+Earlier v2 deployment also has a working E2E run on chain — see [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json) for the full history.
 
 **SealedPool v2 (istanbul)** is the production contract. Configured with:
 - `submitCtxAddress = 0x...1B` (canonical Phase 2 SubmitCTX precompile)

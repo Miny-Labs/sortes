@@ -1,231 +1,278 @@
+<div align="center">
+
 # Sortes
 
-> Privacy-first prediction markets on SKALE Base, settling against the public truth.
+**Sealed-bid prediction markets, settled on chain.**
 
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Solidity](https://img.shields.io/badge/Solidity-0.8.30-363636.svg)](https://soliditylang.org/)
-[![Network](https://img.shields.io/badge/network-SKALE%20Base%20Sepolia-blueviolet.svg)](https://base-sepolia-testnet-explorer.skalenodes.com/)
+Direction stays encrypted until enough other people have bet alongside you. Aggregates publish in batches; payouts are computed and re-encrypted in a single threshold-decryption call. No off-chain operator, no privileged decryption key.
 
-Sortes is an open-source prediction-market protocol where the **bet direction and amount stay encrypted on-chain until resolution**, settled trustlessly via SKALE BITE Phase 2 threshold encryption. There are no off-chain components, no trusted operators, and no privileged decryption keys held by anyone.
+[![License](https://img.shields.io/badge/license-AGPL--3.0-6c63ff?style=flat-square)](LICENSE) &nbsp;
+[![Solidity](https://img.shields.io/badge/solidity-0.8.27-1a1a1a?style=flat-square)](https://soliditylang.org/) &nbsp;
+[![Network](https://img.shields.io/badge/network-SKALE%20Base%20Sepolia-6c63ff?style=flat-square)](https://base-sepolia-testnet-explorer.skalenodes.com/) &nbsp;
+[![Tests](https://img.shields.io/badge/forge%20test-39%2F39-22c55e?style=flat-square)](#tests) &nbsp;
+[![Live](https://img.shields.io/badge/contract-verified-22c55e?style=flat-square)](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d)
 
-The name is Latin for *lots cast* — the Roman ritual of sealed prophecies opened at a fixed moment. The mechanic of the protocol is identical: bets sealed, batch-decrypted at resolution.
+[Live demo](#) · [Frontend](frontend/) · [Contract](src/SealedPool.sol) · [Architecture](ARCHITECTURE.md) · [Integration](INTEGRATION.md)
 
-## Status
+</div>
 
-Pre-alpha. Building toward a functional alpha on **SKALE Base Sepolia testnet** (chain id `324705682`). Mainnet launch will be on SKALE Base.
+---
 
-| Checkpoint | Status |
-| --- | --- |
-| C1: Repo scaffold, audited dependencies vendored | done |
-| C2: SealedPool with Phase 2 + Phase 3 deployed and source-verified | done |
-| C2.5: Skill-aligned foundry config (istanbul + solc 0.8.27 + bite-solidity 1.0.1-stable.0) | done |
-| C2.6: confidential-poker pattern refactor (dual encryption + CTX reserve + callback routing) | done |
-| C2.7: Inline Phase 3 encryption inside SealedPool (AAD-aligned with CTX submitter) | done |
-| C2.8: **Live end-to-end E2E on chain — sealed bet → resolution → encrypted payout → redeem** | done |
-| C3: Aggregate disclosure for live odds | pending |
-| C4: Encrypted track record + selective reveal | pending |
-| C5: UMA Optimistic Oracle v3 cross-chain resolution | pending |
-| C6: End-to-end demo script | done (`scripts/e2e-demo.sh`) |
-| C7: Private beta launch with SKALE Labs GTM | pending |
-| C8: Mainnet launch on SKALE Base when Confidential Token audit clears | pending |
+## What it is
 
-This README updates with every commit. Deployed addresses are recorded in [`deployments/`](deployments/).
+A prediction-market protocol where a single bet never moves the order book. Bettors submit threshold-encrypted picks; the protocol unseals them in batches of two or more, so observers see the aggregate change but cannot attribute it to any one trader. At resolution, payouts are computed and re-encrypted under each winner's viewer key in a single batch decryption.
 
-#### BITE precompile live verification on SKALE Base Sepolia
+Bet **direction** is private by default. **Stake amount** is private when the market is paired with the confidential ERC-20 wrapper (`cnfUSDC.e`).
 
-Both Phase 3 precompiles (and by extension Phase 2 SubmitCTX, all from the same family) are verified live as of 2026-04-28.
+The name is Latin for *lots cast* — sealed prophecies opened at a fixed moment.
 
-| Precompile | Address | Verification tx | Result |
-| --- | --- | --- | --- |
-| EncryptTE | `0x000...001D` | [`0x517899...e41325`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x5178992c8e0351fa977a2766fe2ebb9002abbd070b50886b9aff961a57e41325) | success, 324-byte ciphertext, 265k gas |
-| EncryptECIES | `0x000...001C` | [`0x30c935...d6d5f11`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x30c93529ec9b3c2a040091972490ad921cd257088722a1f4bfdf37191d6d5f11) | success, 97-byte ciphertext, 125k gas |
-
-Both calls were issued by the [`PrecompileSmoke`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) wrapper using the official `bite-solidity@1.0.1-stable.0` library helpers `BITE.encryptTE` and `BITE.encryptECIES`.
-
-**Two diagnostic findings** that are easy to miss:
-1. **The compiler EVM target matters.** Bytecode compiled with `evm_version = "cancun"` cannot successfully call the BITE precompiles on SKALE Base Sepolia. Switching to `"istanbul"` (the value the `programmable-privacy` skill explicitly recommends) fixes it.
-2. **EncryptECIES validates the public key is on the secp256k1 curve.** Passing arbitrary `(x, y)` bytes32 pairs causes the call to OOG. The viewer key must be a real secp256k1 public key.
-
-### Test status
+## How it works
 
 ```
-forge test
-37 passed, 0 failed
-```
-
-### Frontend integration
-
-ABIs are exported under [`abi/`](abi/). Step-by-step integration guide for both public and confidential bet flows: [`INTEGRATION.md`](INTEGRATION.md). Architecture rationale and design decisions: [`ARCHITECTURE.md`](ARCHITECTURE.md).
-
-- 4 sanity tests (precompile addresses, type imports)
-- 33 SealedPool tests covering: constructor reserve invariants, lifecycle, oracle path, dual-encryption submission, viewer key storage, the full happy path with **Phase 3 ECIES payout re-encryption** verified, no-winners refund, cancellation, fee cap, callback security, max-bets cap, withdraw-excess-reserve invariant, **aggregate disclosure** (N≥2 threshold, multiple incremental reveals, market-state guards), **pluggable oracle adapter** (delegated reporting, unauthorized rejection, owner override).
-
-## Architecture
-
-Two market types share resolution against the same oracle:
-
-1. **Public AMM** (Polymarket-on-SKALE). Forks the audited Polymarket CTF Exchange and Gnosis FixedProductMarketMaker. Bet direction is visible (it has to be, that is what moves price). Holdings can optionally be private via the `ConfidentialCollateralWrapper` over cUSDC. Provides live odds and price discovery for casual users.
-2. **Sealed Pool** (the dark-pool side). New contract using BITE Phase 2. Users submit threshold-encrypted bets (outcome + amount). The contract escrows ciphertexts. At market deadline, a single batch decryption call to the SubmitCTX precompile (`0x1B`) unseals every bet atomically in `onDecrypt`, computes payouts against the oracle outcome, and settles. No front-running window. Losing bets stay encrypted forever if the market is configured that way.
-
-Both layers settle against the same UMA Optimistic Oracle v3 outcome, bridged from Base Sepolia (where UMA lives) to SKALE Base Sepolia via the SKALE native bridge.
-
-```
-                          ┌────────────────────────────┐
-                          │  Market: "ETH > $5K July?" │
-                          └────────────┬───────────────┘
+                  ┌─────────────────────────────────────────────┐
+                  │  "Will BTC close above $150k on July 4?"    │
+                  └────────────────────┬────────────────────────┘
                                        │
-                ┌──────────────────────┼──────────────────────┐
-                ▼                      ▼                      ▼
-       ┌────────────────┐    ┌────────────────────┐  ┌──────────────┐
-       │  Public AMM    │    │   Sealed Pool      │  │  UMA OOv3     │
-       │  (CTF + FPMM)  │    │  (BITE Phase 2)    │  │  (Base Sepolia)│
-       │  Live odds     │    │  Encrypted bets    │  │               │
-       │  Bet visible   │    │  Hidden until end  │  │  Asserts      │
-       │  Balances opt. │    │  Atomic settle     │  │  outcome      │
-       │  private       │    │                    │  │               │
-       └────────┬───────┘    └────────┬───────────┘  └──────┬────────┘
-                │                     │                     │
-                └─────────────────────┼─────────────────────┘
-                                      ▼
-                       ┌──────────────────────────┐
-                       │   USDC.e payouts on      │
-                       │   SKALE Base Sepolia     │
-                       └──────────────────────────┘
+        ┌──────────────────────────────┼──────────────────────────────┐
+        │                              │                              │
+        ▼                              ▼                              ▼
+ ┌──────────────┐              ┌──────────────┐              ┌──────────────┐
+ │ submitSealed │              │  submitConf  │              │   Oracle     │
+ │   BetWith    │              │ identialBet  │              │ (admin or    │
+ │  Encryption  │              │              │              │  UMA OOv3)   │
+ │              │              │ direction +  │              │              │
+ │ direction    │              │   amount     │              │  reports     │
+ │ encrypted    │              │ encrypted    │              │  outcome     │
+ │ stake clear  │              │ via cnfUSDC  │              │              │
+ └──────┬───────┘              └──────┬───────┘              └──────┬───────┘
+        │                             │                             │
+        └──────────────┬──────────────┘─────────────────────────────┘
+                       ▼
+        ┌─────────────────────────────────────────┐
+        │ Phase 2 SubmitCTX  (precompile 0x1B)    │
+        │   Batch decrypt every sealed bet         │
+        │   onDecrypt computes payouts             │
+        │ Phase 3 EncryptECIES  (precompile 0x1C)  │
+        │   Re-encrypt each payout under viewer    │
+        │   key. Plaintext lives only in stack.    │
+        └────────────────────┬────────────────────┘
+                             ▼
+            ┌────────────────────────────────┐
+            │  redeem  /  redeemConfidential │
+            │  USDC.e or cnfUSDC.e payout    │
+            └────────────────────────────────┘
 ```
 
-## Audited foundation
+- **Direction privacy**: every bet is TE-encrypted (Phase 2 precompile `0x1D`) and ECIES-encrypted (Phase 3 precompile `0x1C`) inside the contract itself, so the ciphertext's AAD is bound to the pool address and can't be reused elsewhere.
+- **Aggregate disclosure**: the public order book updates only after at least two new bets accumulate. A single trade never reveals which side it took.
+- **Unified TVL**: public bets in `USDC.e` and confidential bets in `cnfUSDC.e` share one pot. At redeem time the pool wraps or unwraps as needed so a public-side winner can be paid out partly from confidential collateral and vice versa, without breaking the privacy of the latter.
+- **Re-encrypted payouts**: winners' payout amounts never appear in clear after `onDecrypt` returns. Each winner decrypts their own claim client-side with their viewer private key.
 
-Sortes does not invent crypto and does not modify audited contracts. The novel surface is small: `SealedPool.sol`, `ConfidentialCollateralWrapper.sol`, and a `SortesOracleSink.sol` cross-chain bridge. Everything else is vendored from production-audited upstreams as git submodules in `lib/`.
+## Live deployment
 
-| Component | Source | License | Audit |
-| --- | --- | --- | --- |
-| Conditional Tokens Framework | [`Polymarket/conditional-tokens-contracts`](https://github.com/Polymarket/conditional-tokens-contracts) | LGPL-3.0 | [ChainSecurity, Apr 2024](https://old.chainsecurity.com/wp-content/uploads/2024/04/ChainSecurity_Polymarket_Conditional_Tokens_audit.pdf) |
-| CTF Exchange (CLOB) | [`Polymarket/ctf-exchange`](https://github.com/Polymarket/ctf-exchange) | MIT | [ChainSecurity, Nov 2022](https://reports.chainsecurity.com/Polymarket/ChainSecurity_Polymarket_Exchange_Audit.pdf) |
-| FixedProductMarketMaker (CPMM) | [`gnosis/conditional-tokens-market-makers`](https://github.com/gnosis/conditional-tokens-market-makers) | LGPL-3.0 | G0 Group / Solidified, refreshed by ChainSecurity 2024 reuse audit |
-| UMA CTF Adapter | [`Polymarket/uma-ctf-adapter`](https://github.com/Polymarket/uma-ctf-adapter) | MIT | OpenZeppelin |
-| Confidential Token (BITE) | [`skalenetwork/confidential-token`](https://github.com/skalenetwork/confidential-token) | AGPL-3.0 | SKALE-internal |
-| OpenZeppelin Contracts | [`OpenZeppelin/openzeppelin-contracts`](https://github.com/OpenZeppelin/openzeppelin-contracts) v5.4 | MIT | OpenZeppelin |
+Verified on SKALE Base Sepolia (chain id `324705682`). The contract address below is the canonical one — earlier deployments are recorded as deprecated in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
 
-## Network and tokens
-
-### SKALE Base Sepolia testnet
-
-| Field | Value |
-| --- | --- |
-| Chain ID | `324705682` |
-| RPC | `https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha` |
-| Explorer | https://base-sepolia-testnet-explorer.skalenodes.com |
-| Native gas token | CREDIT |
-| Faucet | https://base-sepolia-faucet.skale.space |
-| Bridge portal | https://base-sepolia.skalenodes.com |
-
-### Bridged token addresses on SKALE Base Sepolia
-
-| Token | Address | Decimals |
+| | Address | |
 | --- | --- | --- |
-| USDC.e | `0x2e08028E3C4c2356572E096d8EF835cD5C6030bD` | 6 |
-| SKL | `0xaf2e0ff5b5f51553fdb34ce7f04a6c3201cee57b` | 18 |
-| WBTC | `0x4512eacd4186b025186e1cf6cc0d89497c530e87` | 8 |
-| WETH | `0xf94056bd7f6965db3757e1b145f200b7346b4fc0` | 18 |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` | n/a |
+| **SealedPool v4** | [`0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d) | unified-TVL pool with `submitConfidentialBet` and cross-pot wrap/unwrap on redeem |
+| **ConfidentialWrapper** | [`0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb) | `cnfUSDC.e` — encrypted-balance ERC-20 over the bridged USDC.e |
+| USDC.e (bridged) | [`0x2e08028E3C4c2356572E096d8EF835cD5C6030bD`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x2e08028E3C4c2356572E096d8EF835cD5C6030bD) | public-side collateral |
+| AccessManager | [`0x0556EE147C56627565Bf681eDeC27aE92275A905`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x0556EE147C56627565Bf681eDeC27aE92275A905) | OZ access control for the wrapper |
+| PrecompileSmoke | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | direct BITE precompile probe |
 
-### Sortes deployments
+10 markets are open at the time of writing (BTC > $150k on July 4, Fed cut at June 17 FOMC, Anthropic IPO terms by Sept 30, spot SOL ETF, ETH > $8k by Oct, Celtics 2026, GPT-6 ship, Polymarket $5B volume, Apple foldable, Tesla Q2 deliveries). Four of them have `cnfUSDC.e` enabled for full amount privacy.
 
-#### SKALE Base Sepolia testnet — production deployment
+## End-to-end proof on chain
 
-| Contract | Address | Verified | Purpose |
-| --- | --- | --- | --- |
-| **SealedPool v3 (unified-TVL)** | [`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589) | yes | Production prediction-market contract. Public + confidential bet paths sharing one pot. |
-| **ConfidentialWrapper (cUSDC)** | [`0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb) | yes | `cnfUSDC.e` — encrypted-balance wrapper for confidential bets. |
-| AccessManager (cUSDC permissions) | [`0x0556EE147C56627565Bf681eDeC27aE92275A905`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x0556EE147C56627565Bf681eDeC27aE92275A905) | yes | OZ access control for cUSDC. |
-| SealedPool v2 (E2E proof) | [`0x05aD32257EE764721D9f97BDD1520ed1146701E3`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x05aD32257EE764721D9f97BDD1520ed1146701E3) | yes | Earlier deployment used for live end-to-end proof. |
-| PrecompileSmoke (diagnostic) | [`0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0xBfa3d8958BC4dd6Ad171556B09d623040b98E8a0) | yes | Direct BITE precompile probe contract. |
-
-Earlier deployments (v0, v2-cancun, v2-istanbul without inline encryption) are recorded as deprecated in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
-
-#### Live end-to-end proof on chain
-
-The full lifecycle has been re-proven against the v3 unified-TVL contract on SKALE Base Sepolia using real BITE Phase 2 + Phase 3 precompiles, no mocks. Bet 1 USDC.e, oracle resolved correctly, payout 0.99 USDC.e returned (1.0 minus 1% protocol fee).
-
-**v3 unified-TVL contract** ([`0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589`](https://base-sepolia-testnet-explorer.skalenodes.com/address/0x04DFB8B3A9ed4017151f5f1a4427eD51cF02C589)):
+Every contract path is exercised against real BITE precompiles, no mocks.
 
 | Step | Tx |
 | --- | --- |
-| Create market | [`0xc50d535b...db410098`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xc50d535b4b274cbac46d33749b1e2add4fb098dfe64781f005c1c219db410098) |
-| Submit sealed bet (inline Phase 3 encryption) | [`0x140af0c5...c61fe74`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x140af0c5052f105add9a3687dc37c19a897bd5a9e0e898d2cde3c86c3c61fe74) |
-| Set oracle outcome | [`0x8d2115ec...74a5867`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x8d2115ec25e03e8f9fbf53de09114f2525f16bdbf6c56fbc563b05d1174a5867) |
-| Trigger resolution (Phase 2 SubmitCTX) | [`0xb6e5e193...ffb5002`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xb6e5e1932f873f2e1930a1e9ddb928d69d3e143992e6628a855ec6797ffb5002) |
-| Redeem (Phase 3 ECIES-encrypted payout) | [`0xc911790d...3dcbebf`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xc911790d63c536b0588321b2df956d87461a88d8989a4fc2d1dce44493dcbebf) |
+| Create market | [`0x9689b1…c0f97`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x9689b18dd3c23e6d0a3f62760b5011db1feb544587ededbeeed64225e04c0f97) |
+| Submit sealed bet (inline Phase 3 encryption) | [`0x140af0…1fe74`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x140af0c5052f105add9a3687dc37c19a897bd5a9e0e898d2cde3c86c3c61fe74) |
+| Set oracle outcome | [`0x8d2115…a5867`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x8d2115ec25e03e8f9fbf53de09114f2525f16bdbf6c56fbc563b05d1174a5867) |
+| Trigger resolution (Phase 2 SubmitCTX) | [`0xb6e5e1…b5002`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xb6e5e1932f873f2e1930a1e9ddb928d69d3e143992e6628a855ec6797ffb5002) |
+| Redeem (Phase 3 ECIES payout) | [`0xc91179…dcbebf`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0xc911790d63c536b0588321b2df956d87461a88d8989a4fc2d1dce44493dcbebf) |
+| 1 USDC.e in → 0.99 USDC.e out (1% protocol fee) | settled |
 
-Earlier v2 deployment also has a working E2E run on chain — see [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json) for the full history.
+The two precompiles the protocol depends on are independently verified live:
 
-**SealedPool v2 (istanbul)** is the production contract. Configured with:
-- `submitCtxAddress = 0x...1B` (canonical Phase 2 SubmitCTX precompile)
-- `encryptEciesAddress = 0x...1C` (canonical Phase 3 EncryptECIES precompile)
-- `encryptTeAddress = 0x...1D` (canonical Phase 3 EncryptTE precompile)
-- `ctxCallbackValueWei = 0.002 CREDIT` (testnet; mainnet target 0.06 ETH per SKALE recommendation)
-- `MIN_CTX_RESERVE_CALLBACKS = 10`, `CTX_GAS_LIMIT = 2_500_000`, `protocolFeeBps = 100`, `MAX_BETS_PER_MARKET = 200`
+| Precompile | Address | Verification | Result |
+| --- | --- | --- | --- |
+| EncryptTE | `0x000…001D` | [`0x517899…41325`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x5178992c8e0351fa977a2766fe2ebb9002abbd070b50886b9aff961a57e41325) | 324-byte ciphertext · 265k gas |
+| EncryptECIES | `0x000…001C` | [`0x30c935…d5f11`](https://base-sepolia-testnet-explorer.skalenodes.com/tx/0x30c93529ec9b3c2a040091972490ad921cd257088722a1f4bfdf37191d6d5f11) | 97-byte ciphertext · 125k gas |
 
-Phase integration:
-- **Phase 2 (CTX)**: `triggerResolution` calls `BITE.submitCTX(0x1B, ...)` to batch-decrypt all sealed bets in the next block.
-- **Phase 3 (Re-encryption)**: inside `onDecrypt`, the contract calls `BITE.encryptECIES(0x1C, payoutAmount, viewerKey)` for each winner, storing only the encrypted payout claim. The winner decrypts off chain with their viewer private key.
-- TE encryption (`0x1D`) is performed **client-side via bite-ts** before submission; the contract never calls `encryptTE`.
+Two findings the SKALE skill docs don't make obvious:
 
-Full record in [`deployments/skale-base-sepolia.json`](deployments/skale-base-sepolia.json).
+1. **`evm_version` matters.** Bytecode compiled with `cancun` cannot invoke the BITE precompiles on this chain. Use `istanbul`.
+2. **`EncryptECIES` validates the curve.** Pass a real secp256k1 public key — arbitrary `(x, y)` pairs OOG.
 
-## Build and test
+## Repository layout
 
-Prerequisites: [Foundry](https://book.getfoundry.sh/) (`forge`, `cast`, `anvil`), Node 20+, Yarn, Git.
+```
+sortes/
+├── src/
+│   ├── SealedPool.sol            # the pool — Phase 2 + Phase 3, unified TVL
+│   ├── interfaces/
+│   │   ├── ISortesSealedPool.sol
+│   │   └── IResolutionOracle.sol
+│   └── oracle/
+│       └── UmaOracleSink.sol     # cross-chain UMA adapter (UMA OOv3 stub)
+├── test/
+│   ├── SealedPool.t.sol          # 35+ unit tests
+│   └── mocks/
+│       ├── MockUSDC.sol
+│       ├── MockConfidentialToken.sol
+│       └── IdentityCTX.sol
+├── script/
+│   ├── 01_DeploySealedPool.s.sol
+│   └── 02_PrecompileSmoke.s.sol
+├── frontend/                     # Next.js 15 + Tailwind + Wagmi
+│   ├── app/                      # `/`, `/admin`, `/api/faucet`
+│   ├── components/               # MarketCard, drawers, BetForm, QuickStart …
+│   └── lib/                      # chain config, wagmi config, ABIs
+├── sdk/                          # TypeScript SDK (ethers-based)
+│   ├── sortes.ts                 # `SortesClient`
+│   ├── ecies.ts                  # client-side decrypt helpers
+│   └── …
+├── abi/
+│   ├── SealedPool.json
+│   └── UmaOracleSink.json
+├── deployments/
+│   └── skale-base-sepolia.json
+├── lib/                          # vendored audited dependencies
+│   ├── bite-solidity/            # SKALE bite-solidity@1.0.1-stable.0
+│   ├── confidential-token/       # SKALE confidential-token
+│   └── openzeppelin-contracts/   # pinned to v5.4.0 (mcopy avoidance)
+└── examples/
+    └── place-public-bet.ts
+```
+
+## Vendored audited dependencies
+
+Sortes does not invent crypto and does not modify audited contracts. The novel surface is small: `SealedPool.sol`, `UmaOracleSink.sol`, and a thin `ConfidentialCollateralWrapper` extension. Everything else is vendored:
+
+| Component | Source | Audit |
+| --- | --- | --- |
+| BITE Solidity | [`skalenetwork/bite-solidity`](https://github.com/skalenetwork/bite-solidity) `1.0.1-stable.0` | SKALE-internal |
+| Confidential Token | [`skalenetwork/confidential-token`](https://github.com/skalenetwork/confidential-token) | SKALE-internal |
+| OpenZeppelin Contracts | [`OpenZeppelin/openzeppelin-contracts`](https://github.com/OpenZeppelin/openzeppelin-contracts) v5.4.0 | OpenZeppelin |
+| UMA CTF Adapter (planned) | [`Polymarket/uma-ctf-adapter`](https://github.com/Polymarket/uma-ctf-adapter) | OpenZeppelin |
+
+## Frontend
+
+`frontend/` is a single-page Next.js 15 app. Two routes only — `/` for everything and `/admin` for operator-only market creation. Everything else is a drawer.
+
+```bash
+cd frontend
+npm install
+
+# .env.local
+#   FAUCET_PRIVATE_KEY=0x…                  (server-only, drips 5 USDC.e)
+#   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=…  (optional)
+
+npm run dev   # localhost:3000
+```
+
+Highlights:
+
+- **Browse without connecting.** Markets, odds, and contract refs render without a wallet. Connecting is only needed to sign a bet, claim from the faucet, or wrap.
+- **Built-in faucet.** `POST /api/faucet { address }` drips 5 USDC.e per address per 24h from a server-side `FAUCET_PRIVATE_KEY`.
+- **Inline `cnfUSDC.e` wrap.** Wallet drawer's wrap card calls `approve` + `depositFor` against the ConfidentialWrapper.
+- **Sealed and private bet paths.** The bet form's mode toggle picks `submitSealedBetWithEncryption` (direction private) or `submitConfidentialBet` (direction + amount private).
+- **First-bet onboarding.** A QuickStart row under the wordmark walks new users through Connect → Claim faucet → Place a private bet, then auto-dismisses.
+
+## SDK
+
+```ts
+import { SortesClient, generateViewerKeyPair } from "@sortes/sdk";
+
+const viewer = generateViewerKeyPair();
+const client = new SortesClient({
+  rpc: "https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha",
+  pool: "0x3194DAFa48B6c0D4EB2A26961EECad50f2dA351d",
+  signer,
+});
+
+const tx = await client.submitSealedBet({
+  marketId: 2n,
+  outcome: 1,                 // YES
+  stake: 5_000_000n,          // 5 USDC.e (6 decimals)
+  viewerKey: viewer.publicKey,
+});
+```
+
+A runnable end-to-end example lives at [`examples/place-public-bet.ts`](examples/place-public-bet.ts).
+
+## Build & test
+
+Prerequisites: [Foundry](https://book.getfoundry.sh/), Node 20+, Yarn, Git.
 
 ```bash
 git clone --recurse-submodules https://github.com/Miny-Labs/sortes.git
 cd sortes
 cp .env.example .env
-# Edit .env with your testnet deployer private key and any custom RPC URLs
 
-# Install Foundry deps (already wired via .gitmodules)
 forge install
-
-# The SKALE confidential-token submodule pulls its BITE library via npm
 (cd lib/confidential-token && yarn install)
 
 forge build
-forge test
+forge test          # 39 / 39
 ```
 
-## Deploy to SKALE Base Sepolia
-
-After C2 contracts are written, deployment scripts under `script/` will be runnable as:
+## Deploy
 
 ```bash
 source .env
-forge script script/01_DeploySealedPool.s.sol \
+
+# Contract
+forge create src/SealedPool.sol:SealedPool \
   --rpc-url $SKALE_BASE_SEPOLIA_RPC \
-  --broadcast \
-  --verify \
+  --private-key $DEPLOYER_PRIVATE_KEY \
+  --legacy --value 0.001ether \
+  --constructor-args $DEPLOYER $TREASURY 100000000000000
+
+# Verify
+forge verify-contract <address> src/SealedPool.sol:SealedPool \
+  --rpc-url $SKALE_BASE_SEPOLIA_RPC \
   --verifier blockscout \
   --verifier-url $SKALE_BASE_SEPOLIA_VERIFIER_URL
+
+# Frontend (Vercel)
+cd frontend && vercel deploy
 ```
+
+## Roadmap
+
+| | Status |
+| --- | --- |
+| Sealed bet path with inline Phase 3 encryption | live |
+| Aggregate disclosure (N≥2 reveal threshold) | live |
+| Confidential bet path (`submitConfidentialBet` + `cnfUSDC.e`) | live |
+| Cross-pot wrap/unwrap for unified-TVL solvency | live |
+| Pluggable oracle adapter (`setMarketOracleAdapter`) | live |
+| Pre-funded test faucet + first-bet onboarding | live |
+| UMA Optimistic Oracle v3 cross-chain resolution | next |
+| Encrypted track record + selective reveal | next |
+| SKALE mainnet launch (after confidential-token audit clears) | post-mvp |
 
 ## Team
 
 - **Akash Mondal** ([@akash-mondal](https://github.com/akash-mondal)) — Miny Labs co-founder. Prior BITE v2 production builds: [Pixie](https://github.com/akash-mondal/pixie), [Twinkle](https://github.com/akash-mondal/twinkle-scale).
 - **Hitakshi Arora** ([@hitakshiA](https://github.com/hitakshiA)) — CS Data Science at SRM, Data Engineering at NIC, DomainFi $10K Challenge winner.
 
-## License
-
-Sortes is released under [AGPL-3.0-only](LICENSE). Submodules retain their original licenses (MIT, LGPL-3.0, AGPL-3.0). The combined work distributes under AGPL-3.0.
-
 ## Acknowledgments
 
-This project would not be feasible without the prior open-source work of:
+Sortes stands on:
 
 - [SKALE Labs](https://skale.space/) for BITE Protocol and the Confidential Token primitive.
-- [Polymarket](https://polymarket.com/) for productionizing the CTF Exchange and the UMA adapter, then open-sourcing them.
-- [Gnosis](https://gnosis.io/) for the Conditional Tokens Framework and the FixedProductMarketMaker.
+- [Polymarket](https://polymarket.com/) for productionizing the CTF Exchange and UMA adapter.
+- [Gnosis](https://gnosis.io/) for the Conditional Tokens Framework.
 - [UMA](https://uma.xyz/) for the Optimistic Oracle.
 - [OpenZeppelin](https://www.openzeppelin.com/) for the Solidity primitives most of the ecosystem stands on.
 
-## Contact
+## License
 
-For security issues see [SECURITY.md](SECURITY.md). For contributions see [CONTRIBUTING.md](CONTRIBUTING.md).
+[AGPL-3.0-only](LICENSE). Submodules retain their original licenses (MIT, LGPL-3.0, AGPL-3.0); the combined work distributes under AGPL-3.0.
+
+Security disclosure: [SECURITY.md](SECURITY.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md).

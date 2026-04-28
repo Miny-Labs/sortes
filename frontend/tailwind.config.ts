@@ -1,9 +1,9 @@
 import type { Config } from "tailwindcss";
 
 // Palette is in OKLCH so lightness steps stay perceptually uniform and the
-// neutrals tint subtly toward the brand hue (~160, mint-emerald). Chroma
-// drops at the lightness extremes so the ramp doesn't look garish near
-// black or white.
+// neutrals tint subtly toward the brand hue (~295, violet). Chroma drops at
+// the lightness extremes so the ramp doesn't look garish near black or
+// white.
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,23 +13,23 @@ const config: Config = {
     extend: {
       colors: {
         ink: {
-          50:  "oklch(0.978 0.003 160)",
-          100: "oklch(0.945 0.004 160)",
-          200: "oklch(0.875 0.005 160)",
-          300: "oklch(0.795 0.007 160)",
-          400: "oklch(0.690 0.009 160)",
-          500: "oklch(0.585 0.011 160)",
-          600: "oklch(0.470 0.011 160)",
-          700: "oklch(0.320 0.009 160)",
-          800: "oklch(0.215 0.006 160)",
-          850: "oklch(0.180 0.005 160)",
-          900: "oklch(0.140 0.004 160)",
-          950: "oklch(0.105 0.003 160)",
+          50:  "oklch(0.978 0.003 295)",
+          100: "oklch(0.945 0.004 295)",
+          200: "oklch(0.875 0.005 295)",
+          300: "oklch(0.795 0.007 295)",
+          400: "oklch(0.690 0.009 295)",
+          500: "oklch(0.585 0.011 295)",
+          600: "oklch(0.470 0.011 295)",
+          700: "oklch(0.320 0.009 295)",
+          800: "oklch(0.215 0.006 295)",
+          850: "oklch(0.180 0.005 295)",
+          900: "oklch(0.140 0.004 295)",
+          950: "oklch(0.105 0.003 295)",
         },
         signal: {
-          DEFAULT: "oklch(0.79 0.16 160)",
-          dim:     "oklch(0.50 0.12 160)",
-          ghost:   "oklch(0.79 0.16 160 / 0.10)",
+          DEFAULT: "oklch(0.74 0.17 295)",
+          dim:     "oklch(0.48 0.14 295)",
+          ghost:   "oklch(0.74 0.17 295 / 0.10)",
         },
         warn: {
           DEFAULT: "oklch(0.71 0.18 16)",

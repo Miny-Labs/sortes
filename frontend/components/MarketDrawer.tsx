@@ -57,7 +57,7 @@ export function MarketDrawer({ marketId, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 220, damping: 30 }}
-            className="fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-[560px] flex-col border-l border-white/[0.06] bg-ink-900"
+            className="fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-[720px] flex-col border-l border-white/[0.06] bg-ink-900"
           >
             <div className="flex items-start justify-between border-b border-white/[0.06] px-6 py-5">
               <div className="min-w-0 flex-1 pr-4">
@@ -99,7 +99,7 @@ export function MarketDrawer({ marketId, onClose }: Props) {
                     />
                   </section>
 
-                  <PrivacyNote />
+                  <BetLifecycle market={market} />
 
                   <DetailsAccordion />
                 </div>
@@ -184,26 +184,65 @@ function SummaryItem({ label, value }: { label: string; value: React.ReactNode }
   );
 }
 
-// Plain-language summary of how the privacy works. Replaces the older
-// PHASE 3 / N≥2 / AAD / CTX explanations.
-function PrivacyNote() {
+// Market-specific lifecycle. Differs from the landing's HowItWorks panel —
+// where that one is a generic "what is this product" explainer, this one
+// shows the actual schedule for the market the user is looking at.
+function BetLifecycle({ market }: { market: ReturnType<typeof useMarket>["data"] }) {
+  if (!market) return null;
+  const closes = new Date(Number(market.submissionDeadline) * 1000);
+  const resolves = new Date(Number(market.resolutionTime) * 1000);
+  const closesLabel = closes.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const resolvesLabel = resolves.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
+  const steps: Array<{ when: string; what: string; sub?: string }> = [
+    { when: "Now", what: "You bet", sub: "Your pick is sealed the moment you submit." },
+    {
+      when: "After two new bets",
+      what: "Odds update",
+      sub: "The order book refreshes in batches — never one bet at a time.",
+    },
+    { when: closesLabel, what: "Submissions close" },
+    {
+      when: `≈ ${resolvesLabel}`,
+      what: "Outcome reported",
+      sub: "Once the result is in, payouts are computed for everyone in one batch.",
+    },
+    {
+      when: "Anytime after",
+      what: "Redeem",
+      sub: "Tap redeem from your wallet drawer; payout decrypts in this browser.",
+    },
+  ];
+
   return (
-    <div className="rounded-2xl border border-white/[0.05] bg-white/[0.015] p-5">
-      <div className="flex items-start gap-3">
-        <Lock weight="duotone" className="mt-0.5 h-4 w-4 shrink-0 text-signal" />
-        <div className="space-y-2 text-[12.5px] leading-relaxed text-ink-300">
-          <p>
-            Your bet is encrypted on-chain. No one can see which side you took
-            until at least two other people have also bet — only then do the
-            current odds update.
-          </p>
-          <p className="text-ink-400">
-            When the market resolves, winners are paid automatically. Your stake
-            and choice are revealed only at settlement, not before.
-          </p>
-        </div>
-      </div>
-    </div>
+    <section>
+      <div className="label-eyebrow mb-4">What happens next</div>
+      <ol className="space-y-3">
+        {steps.map((s, i) => (
+          <li key={i} className="grid grid-cols-[110px_1fr] gap-4">
+            <div className="num pt-0.5 text-[11px] uppercase tracking-[0.14em] text-ink-500">
+              {s.when}
+            </div>
+            <div className="border-l border-white/[0.06] pl-4">
+              <div className="text-[13.5px] text-ink-100">{s.what}</div>
+              {s.sub && (
+                <div className="mt-1 text-[12px] leading-relaxed text-ink-400">
+                  {s.sub}
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

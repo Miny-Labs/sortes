@@ -94,7 +94,7 @@ function Hero() {
       </video>
       <div
         aria-hidden
-        className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_30%,transparent_0%,oklch(0.105_0.003_160/0.55)_55%,oklch(0.105_0.003_160)_100%)]"
+        className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_30%,transparent_0%,oklch(0.105_0.003_295/0.55)_55%,oklch(0.105_0.003_295)_100%)]"
       />
 
       <div className="relative mx-auto max-w-[1400px] px-6 pb-12 pt-16 lg:pb-20 lg:pt-24">

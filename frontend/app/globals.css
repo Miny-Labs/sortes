@@ -5,12 +5,12 @@
 :root {
   color-scheme: dark;
   --grain-opacity: 0.025;
-  --focus-ring: oklch(0.79 0.16 160);
+  --focus-ring: oklch(0.79 0.16 295);
 }
 
 html, body {
-  background: oklch(0.105 0.003 160);
-  color: oklch(0.945 0.004 160);
+  background: oklch(0.105 0.003 295);
+  color: oklch(0.945 0.004 295);
   font-feature-settings: "ss01" on, "cv11" on, "ss03" on;
 }
 
@@ -21,8 +21,8 @@ body {
 }
 
 ::selection {
-  background: oklch(0.79 0.16 160 / 0.25);
-  color: oklch(0.945 0.004 160);
+  background: oklch(0.79 0.16 295 / 0.25);
+  color: oklch(0.945 0.004 295);
 }
 
 /* Subtle vignette so the canvas feels expensive without trying too hard. */
@@ -33,8 +33,8 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(1100px 600px at 85% -10%, oklch(0.79 0.16 160 / 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, oklch(0.50 0.02 160 / 0.05), transparent 60%);
+    radial-gradient(1100px 600px at 85% -10%, oklch(0.79 0.16 295 / 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, oklch(0.50 0.02 295 / 0.05), transparent 60%);
 }
 
 /* Static grain texture, fixed and pointer-event-none per perf rule. */
@@ -75,14 +75,14 @@ body::after {
 
 @layer components {
   .surface {
-    background: oklch(0.140 0.004 160 / 0.72);
+    background: oklch(0.140 0.004 295 / 0.72);
     border: 1px solid rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(12px);
     border-radius: 20px;
   }
 
   .surface-flat {
-    background: oklch(0.140 0.004 160);
+    background: oklch(0.140 0.004 295);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 16px;
   }
@@ -119,7 +119,7 @@ body::after {
   }
   .btn-signal {
     @apply btn-base px-5 py-2.5 text-sm text-ink-950;
-    background: linear-gradient(180deg, oklch(0.83 0.15 160) 0%, oklch(0.70 0.16 160) 100%);
+    background: linear-gradient(180deg, oklch(0.83 0.15 295) 0%, oklch(0.70 0.16 295) 100%);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
   .btn-signal:active {

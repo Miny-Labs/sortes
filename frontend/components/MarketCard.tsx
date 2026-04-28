@@ -19,20 +19,36 @@ export function MarketCard({
 }) {
   const { aggregates, total } = useAggregatePerOutcome(market.id, market.outcomeCount);
 
-  const mx = useMotionValue(50);
-  const my = useMotionValue(50);
-  const spotX = useSpring(mx, { stiffness: 220, damping: 24 });
-  const spotY = useSpring(my, { stiffness: 220, damping: 24 });
-  const background = useTransform(
-    [spotX, spotY],
-    ([x, y]) =>
-      `radial-gradient(420px circle at ${x}% ${y}%, rgba(255,255,255,0.06), transparent 40%)`,
+  // Cursor position normalized to (-0.5, 0.5). Drives the spotlight position
+  // and the 3D tilt simultaneously.
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+  const spx = useSpring(px, { stiffness: 200, damping: 24 });
+  const spy = useSpring(py, { stiffness: 200, damping: 24 });
+
+  // Spotlight: a brand-tinted glow that follows the cursor.
+  const spotlight = useTransform(
+    [spx, spy],
+    ([x, y]) => {
+      const cx = ((x as number) + 0.5) * 100;
+      const cy = ((y as number) + 0.5) * 100;
+      return `radial-gradient(520px circle at ${cx}% ${cy}%, oklch(0.74 0.17 295 / 0.14), transparent 48%)`;
+    },
   );
+
+  // 3D tilt: ±5° rotation that follows the cursor. Subtle enough not to feel
+  // gimmicky; strong enough to read as alive.
+  const rotateX = useTransform(spy, (v) => `${(v as number) * -6}deg`);
+  const rotateY = useTransform(spx, (v) => `${(v as number) * 6}deg`);
 
   const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    mx.set(((e.clientX - rect.left) / rect.width) * 100);
-    my.set(((e.clientY - rect.top) / rect.height) * 100);
+    px.set((e.clientX - rect.left) / rect.width - 0.5);
+    py.set((e.clientY - rect.top) / rect.height - 0.5);
+  };
+  const onMouseLeave = () => {
+    px.set(0);
+    py.set(0);
   };
 
   const isBinary = market.outcomeCount === 2n;
@@ -53,6 +69,7 @@ export function MarketCard({
       tabIndex={0}
       aria-label={`Open market: ${market.question}`}
       onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
       onClick={() => onOpen(market.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -60,15 +77,22 @@ export function MarketCard({
           onOpen(market.id);
         }
       }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ type: "spring", stiffness: 200, damping: 24 }}
-      className={`group relative flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.015] p-6 transition-colors hover:border-white/[0.12] focus-visible:border-signal/60 ${
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.985, y: 0 }}
+      transition={{ type: "spring", stiffness: 220, damping: 22 }}
+      style={{
+        rotateX,
+        rotateY,
+        transformPerspective: 1200,
+        transformStyle: "preserve-3d",
+      }}
+      className={`group relative flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.015] p-6 transition-[border-color,box-shadow] duration-300 hover:border-signal/40 hover:shadow-[0_30px_60px_-30px_oklch(0.74_0.17_295/0.35)] focus-visible:border-signal/60 ${
         size === "lg" ? "p-8 md:p-10" : ""
       }`}
     >
       <motion.div
         aria-hidden
-        style={{ background }}
+        style={{ background: spotlight }}
         className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
       />
 

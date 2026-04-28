@@ -4,37 +4,146 @@
 
 :root {
   color-scheme: dark;
+  --grain-opacity: 0.025;
 }
 
 html, body {
-  background-color: #0b0d12;
-  color: #f5f6fa;
+  background: #09090b;
+  color: #ededf0;
+  font-feature-settings: "ss01" on, "cv11" on, "ss03" on;
 }
 
 body {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(52, 211, 153, 0.25);
+  color: #ededf0;
+}
+
+/* Subtle vignette so the canvas feels expensive without trying too hard. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(1100px 600px at 85% -10%, rgba(52, 211, 153, 0.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(120, 120, 140, 0.05), transparent 60%);
+}
+
+/* Static grain texture, fixed and pointer-event-none per perf rule. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
 }
 
 @layer components {
-  .card {
-    @apply bg-bg-card border border-border rounded-xl p-5 transition-colors;
+  .surface {
+    background: rgba(22, 22, 26, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
   }
-  .card:hover {
-    @apply bg-bg-hover;
+
+  .surface-flat {
+    background: #101013;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
   }
-  .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all;
+
+  .hairline {
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .ring-soft {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-ink-300 backdrop-blur transition-all;
+  }
+  .pill:hover {
+    @apply border-white/20 bg-white/[0.05] text-ink-100;
+  }
+
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-200 ease-out select-none;
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-glow;
+    @apply btn-base px-5 py-2.5 text-sm bg-ink-100 text-ink-950 hover:bg-white;
   }
-  .btn-outline {
-    @apply btn border border-border text-white hover:border-accent;
+  .btn-primary:active {
+    transform: scale(0.985);
   }
   .btn-ghost {
-    @apply btn text-muted hover:text-white;
+    @apply btn-base px-5 py-2.5 text-sm text-ink-200 border border-white/10 hover:border-white/25 hover:text-white;
   }
+  .btn-signal {
+    @apply btn-base px-5 py-2.5 text-sm text-ink-950;
+    background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 18px -10px rgba(34,197,94,0.55);
+  }
+  .btn-signal:active {
+    transform: scale(0.985) translateY(1px);
+  }
+  .btn-warn {
+    @apply btn-base px-5 py-2.5 text-sm text-ink-950;
+    background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 18px -10px rgba(225,29,72,0.55);
+  }
+  .btn-warn:active {
+    transform: scale(0.985) translateY(1px);
+  }
+
   .input {
-    @apply bg-bg border border-border rounded-lg px-3 py-2 text-white placeholder:text-muted focus:border-accent focus:outline-none;
+    @apply w-full bg-transparent rounded-xl border border-white/10 px-4 py-3 text-ink-100 placeholder:text-ink-500 focus:outline-none focus:border-ink-300 transition-colors;
+  }
+  .input-mono {
+    @apply input font-mono tabular-nums;
+  }
+
+  .label-eyebrow {
+    @apply text-[10px] font-mono tracking-[0.18em] uppercase text-ink-500;
+  }
+
+  .num {
+    @apply font-mono tabular-nums;
+  }
+
+  .divider {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
   }
 }

@@ -1,83 +1,87 @@
 # Sortes frontend
 
-Next.js 15 + Tailwind + Wagmi/RainbowKit frontend for Sortes prediction markets.
+Single-page Next.js 15 app for Sortes — sealed prediction markets on SKALE Base
+Sepolia. Built around the `taste-skill` design discipline (Geist, Zinc + one
+signal accent, asymmetric layout, spring physics, no AI tells).
 
 ## Setup
 
 ```bash
 cd frontend
 npm install
-# (optional) create .env.local with:
-#   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<your project id from cloud.walletconnect.com>
+
+# .env.local — required for the faucet button to work:
+#   FAUCET_PRIVATE_KEY=0x...        (server-only, drips 5 USDC.e on demand)
+# .env.local — optional:
+#   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<id from cloud.walletconnect.com>
+
 npm run dev
 ```
 
 Open http://localhost:3000.
 
-## Pages
+## Routes
 
-- `/` — markets list (live odds via aggregate disclosure)
-- `/markets/[id]` — market detail + bet placement
-- `/portfolio` — your positions across all markets, redeem flow
-- `/admin` — owner-only market creation
+Two pages on purpose. Everything else is drawers.
 
-## What it does end-to-end
+- `/` — hero, markets bento, contract refs. Clicking a market opens a right-side
+  drawer with the full detail and bet form. Wallet button in the top bar opens
+  a wallet drawer with balances, faucet, USDC.e → cnfUSDC.e wrap, and your bets.
+- `/admin` — owner-only market creation. The contract enforces ownership so
+  this is just a thin form.
 
-1. **Connect wallet** (RainbowKit, supports MetaMask/Rainbow/WalletConnect).
-2. **Browse open markets** with live aggregate odds. The N≥2 anti-deanonymization threshold is exposed via a "Trigger reveal" button when 2+ new bets are pending.
-3. **Place a sealed bet**: select outcome, set stake, generate viewer key (saved in `localStorage`), approve USDC.e once, submit. Pool encrypts inline via Phase 3.
-4. **Confidential mode toggle**: alpha — wires up to `submitConfidentialBet` once cnfUSDC.e wrapping is in the UI. The contract supports it today.
-5. **Portfolio**: see your bets, redeem winners after resolution.
-6. **Admin**: create new markets (owner only).
+## Browse without connecting
 
-## Architecture notes
+Markets, odds, and contract references render without a wallet. Connecting is
+only required to sign a sealed bet, claim from the faucet, or wrap to cnfUSDC.
 
-- All chain reads use Wagmi's `useReadContract` / `useReadContracts` for caching.
-- Writes go through `useWriteContract`.
-- The SealedPool ABI is imported from `../abi/SealedPool.json` (the one this repo's contracts export).
-- Viewer keys are generated client-side using `@noble/curves/secp256k1` and persisted in `localStorage` keyed by `(wallet, marketId)`. Users can export their keys later for cross-device decrypt.
-- ECIES decryption of payout claims uses the same noble libs (mirroring the SDK's `ecies.ts`).
+## Faucet
 
-## Dev TODO (for the frontend team)
+`POST /api/faucet { address }` drips 5 USDC.e from `FAUCET_PRIVATE_KEY` to the
+caller. Naive in-memory rate limit: one claim per address per 24h. Restart the
+process to clear it. Don't deploy this to a multi-tenant production environment
+without persistent rate limiting.
 
-- Wire confidential bet flow: cnfUSDC.e wrap + balance display + `submitConfidentialBet` call with bite-ts client-side encryption.
-- Add charts: oracle outcome history per market, Brier-score reputation graphs.
-- Add a "decrypt my payout" button on resolved bets, reading `encryptedPayoutOf` and decrypting with the saved viewer key.
-- WalletConnect Cloud Project ID setup: register at https://cloud.walletconnect.com and put the id in `.env.local`.
-- Polish: skeleton loaders, optimistic updates, error toasts.
-- Mobile breakpoints: Tailwind utilities are in place but no real mobile testing yet.
-- Markets-list filtering, search, sorting.
-- Notification system for resolution events (subscribe to `MarketResolved` and `ResolutionTriggered`).
+## Wrap (USDC.e → cnfUSDC.e)
+
+Available in the wallet drawer. Approves the wrapper once, then `depositFor`s
+the chosen amount of bridged USDC.e into the SKALE confidential ERC-20 at
+`0xEbf27A9A2C38308209F912329Da4b6bFe78DB8fb`. Encrypted balances surface as
+"encrypted" in the UI; decrypt is a client-side operation against the SDK's
+`ecies` helpers.
+
+## Architecture
+
+- `app/page.tsx` — hero + bento + drawers state.
+- `app/admin/page.tsx` — operator-only market creation.
+- `app/api/faucet/route.ts` — Node runtime route, signs locally.
+- `components/TopBar.tsx` — sticky header, faucet pill, wallet trigger.
+- `components/MarketDrawer.tsx` — slide-in market detail + bet form.
+- `components/WalletDrawer.tsx` — balances, faucet, wrap, bets tab.
+- `components/BetForm.tsx` — sealed bet path with magnetic CTA.
+- `components/MarketCard.tsx` — spotlight-border card.
+- `components/OddsBreakdown.tsx` — refined data viz with reveal trigger.
+- `lib/chain.ts` — chain definition shared between server and client.
+- `lib/wagmi.ts` — Wagmi config (client only).
+- `lib/contracts.ts` — addresses + ABIs (SealedPool, ERC20, cnfUSDC).
+- `lib/markets.ts` — read hooks (`useAllMarkets`, `useMarket`, aggregates).
+- `lib/faucet.ts` — `useFaucet` client hook.
+
+## Sealed bet path (current contract)
+
+The deployed `v3-unifiedTVL` SealedPool exposes `submitSealedBetWithEncryption`
+which seals direction inline via Phase 3. The matching `submitConfidentialBet`
+entrypoint that wires cnfUSDC.e amount-privacy is queued for v3.1; the wrap
+flow ships now so users can pre-fund their confidential balance.
 
 ## Deploy
 
-Vercel:
 ```bash
-cd frontend
+npm run build
 npx vercel deploy
 ```
 
-Or any static-friendly host. The app uses RSC + client components — Vercel's Next.js runtime is the cleanest fit. Set `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` in the Vercel env config.
+Set on Vercel:
 
-## Repo layout
-
-```
-frontend/
-├── app/             # Next.js app router
-│   ├── layout.tsx   # global header + footer
-│   ├── providers.tsx
-│   ├── page.tsx     # markets list
-│   ├── markets/[id]/page.tsx
-│   ├── portfolio/page.tsx
-│   └── admin/page.tsx
-├── components/
-│   ├── MarketCard.tsx
-│   ├── BetForm.tsx
-│   └── OddsBreakdown.tsx
-├── lib/
-│   ├── wagmi.ts        # SKALE Base Sepolia chain config
-│   ├── contracts.ts    # ABI + addresses
-│   └── markets.ts      # data hooks
-├── package.json
-└── tailwind.config.ts
-```
+- `FAUCET_PRIVATE_KEY` — server-side only, never `NEXT_PUBLIC_`.
+- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — for non-injected wallets.
